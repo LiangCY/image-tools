@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: process.env.NODE_ENV === 'production' ? '/image-tool/' : '/',
+  base: process.env.NODE_ENV === 'production' ? '/image-tools/' : '/',
   build: {
     sourcemap: 'hidden',
   },
