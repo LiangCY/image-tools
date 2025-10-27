@@ -1,0 +1,136 @@
+// 图片相关类型
+export interface ImageFile {
+  id: string;
+  file: File;
+  url: string;
+  width: number;
+  height: number;
+  size: number;
+  name: string;
+}
+
+// 画布尺寸预设类型
+export interface CanvasPreset {
+  name: string;
+  width: number;
+  height: number;
+  category: 'ratio' | 'paper' | 'custom';
+}
+
+// 拼接设置类型
+export interface SpliceSettings {
+  direction: 'horizontal' | 'vertical';
+  spacing: number;
+  // 支持水平和垂直两个独立的对齐方式
+  horizontalAlignment: 'start' | 'center' | 'end';
+  verticalAlignment: 'start' | 'center' | 'end';
+  backgroundColor: string;
+  borderRadius: number;
+  borderWidth: number;
+  borderColor: string;
+  paddingTop: number;
+  paddingRight: number;
+  paddingBottom: number;
+  paddingLeft: number;
+  // 画布尺寸设置
+  canvasSizeMode: 'auto' | 'preset' | 'custom';
+  canvasPreset?: string;
+  canvasOrientation: 'landscape' | 'portrait';
+  customWidth?: number;
+  customHeight?: number;
+}
+
+// 对齐方式的语义化映射
+export const AlignmentLabels = {
+  horizontal: {
+    start: { label: '左对齐', icon: 'AlignLeft' },
+    center: { label: '水平居中', icon: 'AlignCenter' },
+    end: { label: '右对齐', icon: 'AlignRight' }
+  },
+  vertical: {
+    start: { label: '顶部对齐', icon: 'AlignTop' },
+    center: { label: '垂直居中', icon: 'AlignCenter' },
+    end: { label: '底部对齐', icon: 'AlignBottom' }
+  }
+} as const;
+
+// 压缩设置类型
+export interface CompressionSettings {
+  quality: number; // 0-100
+  width?: number;
+  height?: number;
+  maintainAspectRatio: boolean;
+  format: 'jpeg' | 'png' | 'webp';
+}
+
+// 文字元素类型
+export interface TextElement {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  fontWeight: 'normal' | 'bold';
+  fontStyle: 'normal' | 'italic';
+  textAlign: 'left' | 'center' | 'right';
+  rotation: number;
+  opacity: number;
+}
+
+// 图标元素类型
+export interface IconElement {
+  id: string;
+  iconName: string;
+  x: number;
+  y: number;
+  size: number;
+  color: string;
+  rotation: number;
+  opacity: number;
+}
+
+// 导出设置类型
+export interface ExportSettings {
+  format: 'jpeg' | 'png' | 'webp';
+  quality: number;
+  width?: number;
+  height?: number;
+  includeMetadata: boolean;
+}
+
+// 编辑工具类型
+export type EditTool = 'splice' | 'canvas' | 'text' | 'icon' | 'export';
+
+// 编辑状态类型
+export interface EditState {
+  images: ImageFile[];
+  selectedImageIds: string[];
+  spliceSettings: SpliceSettings;
+  compressionSettings: CompressionSettings;
+  textElements: TextElement[];
+  iconElements: IconElement[];
+  activeTool: EditTool;
+  canvasWidth: number;
+  canvasHeight: number;
+  zoom: number;
+  panX: number;
+  panY: number;
+}
+
+// 处理进度类型
+export interface ProcessingProgress {
+  isProcessing: boolean;
+  progress: number;
+  message: string;
+}
+
+// 历史记录类型
+export interface HistoryRecord {
+  id: string;
+  timestamp: number;
+  thumbnail: string;
+  operation: string;
+  images: ImageFile[];
+}
