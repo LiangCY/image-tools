@@ -57,16 +57,4 @@ npm run build
 npm run preview
 ```
 
-## 📦 部署
 
-项目已配置自动部署到 GitHub Pages。每次推送到 `main` 分支都会自动触发部署流程。
-
-详细的部署说明请参考 [DEPLOYMENT.md](./DEPLOYMENT.md)。
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 📄 许可证
-
-MIT License
