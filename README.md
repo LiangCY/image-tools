@@ -2,6 +2,8 @@
 
 一个功能丰富的在线图片处理工具，支持图片拼接、压缩、添加文字和图标等功能。
 
+*由 [TRAE Vibe Coding](https://www.trae.ai/solo) 开发*
+
 ## 🌐 在线演示
 
 **[🚀 立即体验](https://LiangCY.github.io/image-tools/)**
