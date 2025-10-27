@@ -31,13 +31,12 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: '移动端图片处理工具',
+        name: '图片处理工具',
         short_name: '图片工具',
-        description: '专为移动端优化的图片处理工具',
+        description: '功能丰富的在线图片处理工具',
         theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',
-        orientation: 'portrait',
         icons: [
           {
             src: 'favicon.svg',
