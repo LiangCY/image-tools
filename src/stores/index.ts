@@ -57,6 +57,7 @@ interface EditStore extends EditState {
   addTextElement: (element: Omit<TextElement, 'id'>) => void;
   updateTextElement: (id: string, updates: Partial<TextElement>) => void;
   removeTextElement: (id: string) => void;
+  selectTextElement: (id: string | null) => void;
   
   // 图标元素
   addIconElement: (element: Omit<IconElement, 'id'>) => void;
@@ -132,6 +133,7 @@ export const useEditStore = create<EditStore>((set, get) => ({
   zoom: 1,
   panX: 0,
   panY: 0,
+  selectedTextId: null,
 
   addImages: async (files: File[]) => {
     try {
@@ -221,8 +223,13 @@ export const useEditStore = create<EditStore>((set, get) => ({
 
   removeTextElement: (id: string) => {
     set(state => ({
-      textElements: state.textElements.filter(element => element.id !== id)
+      textElements: state.textElements.filter(element => element.id !== id),
+      selectedTextId: state.selectedTextId === id ? null : state.selectedTextId
     }));
+  },
+
+  selectTextElement: (id: string | null) => {
+    set({ selectedTextId: id });
   },
 
   addIconElement: (element: Omit<IconElement, 'id'>) => {
@@ -273,6 +280,7 @@ export const useEditStore = create<EditStore>((set, get) => ({
       zoom: 1,
       panX: 0,
       panY: 0,
+      selectedTextId: null,
     });
   },
 }));

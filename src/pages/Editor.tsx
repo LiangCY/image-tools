@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useEditStore, useProcessingStore } from '../stores';
 import { useFileUpload } from '../hooks/useFileUpload';
-import { ImageProcessor } from '../utils/imageProcessor';
+import { ImageProcessor, TextRenderer } from '../utils/imageProcessor';
 import SplicePanel from '../components/SplicePanel';
 import CanvasPanel from '../components/CanvasPanel';
 import ExportPanel from '../components/ExportPanel';
+import TextPanel from '../components/TextPanel';
 
 import {
   Images,
@@ -25,6 +26,11 @@ const Editor: React.FC = () => {
   const { handleDrop, handleDragOver, openFileDialog } = useFileUpload();
   const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [isDraggingText, setIsDraggingText] = useState(false);
+  const [dragStartScreenPos, setDragStartScreenPos] = useState<{ x: number; y: number } | null>(null);
+  const [dragStartTextPos, setDragStartTextPos] = useState<{ x: number; y: number } | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const lastUpdateTime = useRef<number>(0);
 
   const {
     images,
@@ -37,12 +43,15 @@ const Editor: React.FC = () => {
     zoom,
     panX,
     panY,
+    selectedTextId,
     setActiveTool,
     selectImage,
     removeImage,
     reset,
     setZoom,
-
+    addTextElement,
+    selectTextElement,
+    updateTextElement,
     reorderImages
   } = useEditStore();
 
@@ -60,7 +69,8 @@ const Editor: React.FC = () => {
           spliceSettings,
           compressionSettings,
           textElements,
-          iconElements
+          iconElements,
+          selectedTextId
         );
 
         const canvas = canvasRef.current;
@@ -81,7 +91,16 @@ const Editor: React.FC = () => {
     };
 
     renderPreview();
-  }, [images, selectedImageIds, spliceSettings, compressionSettings, textElements, iconElements]);
+  }, [images, selectedImageIds, spliceSettings, compressionSettings, textElements, iconElements, selectedTextId]);
+
+  // 清理动画帧
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
 
   const handleToolSelect = (tool: typeof activeTool) => {
     setActiveTool(tool);
@@ -100,6 +119,136 @@ const Editor: React.FC = () => {
     const newZoom = zoom + delta;
     setZoom(Math.max(0.1, Math.min(5, newZoom)));
   };
+
+  // 获取画布坐标
+  const getCanvasCoordinates = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return { x: 0, y: 0 };
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    // 计算相对于画布的坐标
+    const canvasX = event.clientX - rect.left;
+    const canvasY = event.clientY - rect.top;
+    
+    // 简单的坐标转换：将显示坐标转换为画布内容坐标
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    return {
+      x: canvasX * scaleX,
+      y: canvasY * scaleY
+    };
+  };
+
+  // 将屏幕坐标差值转换为画布坐标差值
+  const screenDeltaToCanvasDelta = (screenDeltaX: number, screenDeltaY: number) => {
+    if (!canvasRef.current) return { x: 0, y: 0 };
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    return {
+      x: screenDeltaX * scaleX,
+      y: screenDeltaY * scaleY
+    };
+  };
+
+  // 画布鼠标按下处理
+  const handleCanvasMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (activeTool !== 'text' || !canvasRef.current) return;
+
+    const { x, y } = getCanvasCoordinates(event);
+    
+    // 检查是否点击了文字元素
+    let clickedTextId: string | null = null;
+    for (let i = textElements.length - 1; i >= 0; i--) {
+      const textElement = textElements[i];
+      if (TextRenderer.isPointInText(textElement, x, y)) {
+        clickedTextId = textElement.id;
+        break;
+      }
+    }
+
+    if (clickedTextId) {
+      // 选中文字元素
+      const clickedText = textElements.find(t => t.id === clickedTextId);
+      selectTextElement(clickedTextId);
+      setIsDraggingText(true);
+      // 记录屏幕坐标和文字初始位置
+      setDragStartScreenPos({ x: event.clientX, y: event.clientY });
+      if (clickedText) {
+        setDragStartTextPos({ x: clickedText.x, y: clickedText.y });
+      }
+    } else {
+      // 取消选中
+      selectTextElement(null);
+    }
+  };
+
+  // 画布鼠标移动处理
+  const handleCanvasMouseMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDraggingText || !selectedTextId || !dragStartScreenPos || !dragStartTextPos || !canvasRef.current) return;
+
+    const now = performance.now();
+    
+    // 取消之前的动画帧
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+
+    // 使用 requestAnimationFrame 来优化性能
+    animationFrameRef.current = requestAnimationFrame(() => {
+      // 时间节流：限制更新频率到 60fps
+      if (now - lastUpdateTime.current < 16) return;
+      lastUpdateTime.current = now;
+      
+      // 计算屏幕坐标的偏移量
+      const screenDeltaX = event.clientX - dragStartScreenPos.x;
+      const screenDeltaY = event.clientY - dragStartScreenPos.y;
+      
+      // 将屏幕坐标偏移量转换为画布坐标偏移量
+      const { x: canvasDeltaX, y: canvasDeltaY } = screenDeltaToCanvasDelta(screenDeltaX, screenDeltaY);
+      
+      // 计算新的文字位置
+      const newX = dragStartTextPos.x + canvasDeltaX;
+      const newY = dragStartTextPos.y + canvasDeltaY;
+      
+      // 添加边界检查
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      
+      const minX = 0;
+      const minY = 20;
+      const maxX = canvas.width - 50;
+      const maxY = canvas.height - 10;
+      
+      const clampedX = Math.max(minX, Math.min(maxX, newX));
+      const clampedY = Math.max(minY, Math.min(maxY, newY));
+      
+      // 更新文字位置
+      updateTextElement(selectedTextId, {
+        x: clampedX,
+        y: clampedY
+      });
+    });
+  }, [isDraggingText, selectedTextId, dragStartScreenPos, dragStartTextPos, updateTextElement]);
+
+  // 画布鼠标释放处理
+  const handleCanvasMouseUp = useCallback(() => {
+    // 取消任何待处理的动画帧
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    
+    setIsDraggingText(false);
+    setDragStartScreenPos(null);
+    setDragStartTextPos(null);
+  }, []);
 
 
 
@@ -369,10 +518,20 @@ const Editor: React.FC = () => {
             >
               <canvas
                 ref={canvasRef}
-                className="max-w-full max-h-full border border-gray-300 bg-white shadow-lg"
+                className={`max-w-full max-h-full border border-gray-300 bg-white shadow-lg ${
+                  activeTool === 'text' 
+                    ? isDraggingText 
+                      ? 'cursor-grabbing' 
+                      : 'cursor-pointer'
+                    : 'cursor-default'
+                }`}
                 style={{
                   imageRendering: 'pixelated',
                 }}
+                onMouseDown={handleCanvasMouseDown}
+                onMouseMove={handleCanvasMouseMove}
+                onMouseUp={handleCanvasMouseUp}
+                onMouseLeave={handleCanvasMouseUp}
               />
             </div>
           ) : (
@@ -383,6 +542,8 @@ const Editor: React.FC = () => {
               </div>
             </div>
           )}
+
+
 
           {/* 缩放控制 */}
           {images.length > 0 && (
@@ -422,11 +583,7 @@ const Editor: React.FC = () => {
 
           {activeTool === 'canvas' && <CanvasPanel />}
 
-          {activeTool === 'text' && (
-            <div className="text-sm text-gray-600">
-              文字编辑面板将在这里显示
-            </div>
-          )}
+          {activeTool === 'text' && <TextPanel />}
 
           {activeTool === 'icon' && (
             <div className="text-sm text-gray-600">

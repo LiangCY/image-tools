@@ -1,11 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useEditStore, useProcessingStore, useHistoryStore } from '../stores';
 import { ImageProcessor, ImageExporter } from '../utils/imageProcessor';
 import { ExportSettings } from '../types';
 import { 
   Download, 
-  FileImage, 
-  Settings, 
   Info,
   CheckCircle,
   AlertCircle
@@ -13,7 +11,6 @@ import {
 import { toast } from 'sonner';
 
 const ExportPanel: React.FC = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [exportSettings, setExportSettings] = useState<ExportSettings>({
     format: 'png',
     quality: 90,

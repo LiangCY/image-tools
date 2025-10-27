@@ -24,7 +24,6 @@ export const useFileUpload = () => {
 
     try {
       await addImages(imageFiles);
-      toast.success(`成功添加 ${imageFiles.length} 张图片`);
     } catch (error) {
       console.error('Failed to add images:', error);
       toast.error('添加图片失败，请重试');

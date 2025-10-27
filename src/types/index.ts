@@ -117,6 +117,7 @@ export interface EditState {
   zoom: number;
   panX: number;
   panY: number;
+  selectedTextId: string | null;
 }
 
 // 处理进度类型

@@ -369,7 +369,8 @@ export class ImageCompressor {
 export class TextRenderer {
   static drawText(
     ctx: CanvasRenderingContext2D,
-    element: TextElement
+    element: TextElement,
+    isSelected: boolean = false
   ): void {
     ctx.save();
     
@@ -379,14 +380,113 @@ export class TextRenderer {
     ctx.textAlign = element.textAlign;
     ctx.globalAlpha = element.opacity;
     
+    // 分割文本为多行
+    const lines = element.text.split('\n');
+    const lineHeight = element.fontSize * 1.2; // 行高为字体大小的1.2倍
+    
     // 应用旋转
     if (element.rotation !== 0) {
       ctx.translate(element.x, element.y);
       ctx.rotate((element.rotation * Math.PI) / 180);
-      ctx.fillText(element.text, 0, 0);
+      
+      // 绘制多行文字，第一行从基线位置开始
+      lines.forEach((line, index) => {
+        ctx.fillText(line, 0, index * lineHeight);
+      });
+      
+      // 绘制选中状态的边框
+      if (isSelected) {
+        this.drawSelectionBorder(ctx, element, true);
+      }
     } else {
-      ctx.fillText(element.text, element.x, element.y);
+      // 绘制多行文字
+      lines.forEach((line, index) => {
+        ctx.fillText(line, element.x, element.y + index * lineHeight);
+      });
+      
+      // 绘制选中状态的边框
+      if (isSelected) {
+        this.drawSelectionBorder(ctx, element, false);
+      }
     }
+    
+    ctx.restore();
+  }
+
+  static drawSelectionBorder(
+    ctx: CanvasRenderingContext2D,
+    element: TextElement,
+    isRotated: boolean = false
+  ): void {
+    const { width, height } = this.measureText(element);
+    const padding = 4;
+    
+    ctx.save();
+    
+    // 设置边框样式
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.globalAlpha = 0.8;
+    
+    let x, y;
+    
+    if (isRotated) {
+      // 对于旋转的多行文字，需要根据对齐方式计算边框位置
+      // 文字从 (0, 0) 开始绘制，第一行基线在 y=0
+      switch (element.textAlign) {
+        case 'center':
+          x = -width / 2;
+          break;
+        case 'right':
+          x = -width;
+          break;
+        case 'left':
+        default:
+          x = 0;
+          break;
+      }
+      // 边框顶部应该是第一行的顶部
+      y = -element.fontSize;
+    } else {
+      // 非旋转文字的边框计算
+      switch (element.textAlign) {
+        case 'center':
+          x = element.x - width / 2;
+          break;
+        case 'right':
+          x = element.x - width;
+          break;
+        case 'left':
+        default:
+          x = element.x;
+          break;
+      }
+      y = element.y - element.fontSize;
+    }
+
+    
+    // 绘制选中边框
+    ctx.strokeRect(
+      x - padding,
+      y - padding,
+      width + padding * 2,
+      height + padding * 2
+    );
+    
+    // 绘制控制点
+    const controlPoints = [
+      { x: x - padding, y: y - padding }, // 左上
+      { x: x + width + padding, y: y - padding }, // 右上
+      { x: x + width + padding, y: y + height + padding }, // 右下
+      { x: x - padding, y: y + height + padding }, // 左下
+    ];
+    
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#3b82f6';
+    controlPoints.forEach(point => {
+      ctx.fillRect(point.x - 3, point.y - 3, 6, 6);
+    });
     
     ctx.restore();
   }
@@ -398,12 +498,99 @@ export class TextRenderer {
     const ctx = canvas.getContext('2d')!;
     
     ctx.font = `${element.fontStyle} ${element.fontWeight} ${element.fontSize}px ${element.fontFamily}`;
-    const metrics = ctx.measureText(element.text);
+    
+    // 分割文本为多行
+    const lines = element.text.split('\n');
+    const lineHeight = element.fontSize * 1.2;
+    
+    // 计算最大宽度
+    let maxWidth = 0;
+    lines.forEach(line => {
+      const metrics = ctx.measureText(line);
+      maxWidth = Math.max(maxWidth, metrics.width);
+    });
+    
+    // 计算总高度
+    const totalHeight = lines.length * lineHeight;
     
     return {
-      width: metrics.width,
-      height: element.fontSize
+      width: maxWidth,
+      height: totalHeight
     };
+  }
+
+  static getTextBounds(element: TextElement): {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } {
+    const { width, height } = this.measureText(element);
+    let x = element.x;
+    // 对于多行文字，y坐标应该是第一行的顶部
+    const y = element.y - element.fontSize;
+    
+    // 根据文字对齐方式调整边界
+    switch (element.textAlign) {
+      case 'center':
+        x = element.x - width / 2;
+        break;
+      case 'right':
+        x = element.x - width;
+        break;
+      case 'left':
+      default:
+        x = element.x;
+        break;
+    }
+    
+    return { x, y, width, height };
+  }
+
+  static isPointInText(
+    element: TextElement,
+    pointX: number,
+    pointY: number
+  ): boolean {
+    const bounds = this.getTextBounds(element);
+    const padding = 4; // 增加一些点击容错
+    
+    // 如果有旋转，需要进行坐标变换
+    if (element.rotation !== 0) {
+      const centerX = element.x;
+      // 旋转中心就是文字的基线位置
+      const centerY = element.y;
+      
+      // 将点击点转换到文字的本地坐标系（逆旋转）
+      const cos = Math.cos((-element.rotation * Math.PI) / 180);
+      const sin = Math.sin((-element.rotation * Math.PI) / 180);
+      
+      // 先将点击点转换为相对于旋转中心的坐标
+      const relativeX = pointX - centerX;
+      const relativeY = pointY - centerY;
+      
+      // 应用逆旋转变换
+      const rotatedX = cos * relativeX - sin * relativeY;
+      const rotatedY = sin * relativeX + cos * relativeY;
+      
+      // 转换回绝对坐标
+      const localX = rotatedX + centerX;
+      const localY = rotatedY + centerY;
+      
+      return (
+        localX >= bounds.x - padding &&
+        localX <= bounds.x + bounds.width + padding &&
+        localY >= bounds.y - padding &&
+        localY <= bounds.y + bounds.height + padding
+      );
+    }
+    
+    return (
+      pointX >= bounds.x - padding &&
+      pointX <= bounds.x + bounds.width + padding &&
+      pointY >= bounds.y - padding &&
+      pointY <= bounds.y + bounds.height + padding
+    );
   }
 }
 
@@ -502,7 +689,8 @@ export class ImageProcessor {
     spliceSettings: SpliceSettings,
     compressionSettings: CompressionSettings,
     textElements: TextElement[],
-    iconElements: IconElement[]
+    iconElements: IconElement[],
+    selectedTextId?: string
   ): Promise<HTMLCanvasElement> {
     // 获取选中的图片，如果没有选中则使用所有图片
     const imagesToProcess = selectedImageIds.length > 0 
@@ -529,7 +717,8 @@ export class ImageProcessor {
 
     // 添加文字元素
     textElements.forEach(textElement => {
-      TextRenderer.drawText(ctx, textElement);
+      const isSelected = selectedTextId === textElement.id;
+      TextRenderer.drawText(ctx, textElement, isSelected);
     });
 
     // 添加图标元素
