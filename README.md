@@ -1,57 +1,73 @@
-# React + TypeScript + Vite
+# 移动端图片处理工具
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+一个专为移动端优化的在线图片处理工具，支持图片拼接、压缩、添加文字和图标等功能。
 
-Currently, two official plugins are available:
+## 🌐 在线演示
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+**[🚀 立即体验](https://LiangCY.github.io/image-tools/)**
 
-## Expanding the ESLint configuration
+## ✨ 主要功能
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- 📱 **移动端优化** - 专为手机和平板设计的响应式界面
+- 🖼️ **图片拼接** - 支持水平/垂直拼接，自定义间距和对齐方式
+- 🗜️ **图片压缩** - 智能压缩，保持画质的同时减小文件大小
+- 📝 **文字添加** - 在图片上添加自定义文字，支持多种字体和样式
+- 🎨 **图标装饰** - 丰富的图标库，让你的图片更生动
+- 📐 **画布预设** - 常用尺寸预设，适配各种社交媒体平台
+- 💾 **多格式导出** - 支持 PNG、JPEG、WebP 格式导出
+- 🔄 **PWA 支持** - 可安装到桌面，支持离线使用
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+## 🛠️ 技术栈
+
+- **前端框架**: React 18 + TypeScript
+- **构建工具**: Vite
+- **样式方案**: Tailwind CSS
+- **状态管理**: Zustand
+- **路由**: React Router
+- **UI 组件**: Radix UI + Lucide React
+- **PWA**: Vite PWA Plugin
+
+## 🚀 本地开发
+
+### 环境要求
+
+- Node.js 18+
+- npm 或 pnpm
+
+### 安装依赖
+
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 启动开发服务器
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config({
-  extends: [
-    // other configs...
-    // Enable lint rules for React
-    reactX.configs['recommended-typescript'],
-    // Enable lint rules for React DOM
-    reactDom.configs.recommended,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```bash
+npm run dev
 ```
+
+### 构建生产版本
+
+```bash
+npm run build
+```
+
+### 预览构建结果
+
+```bash
+npm run preview
+```
+
+## 📦 部署
+
+项目已配置自动部署到 GitHub Pages。每次推送到 `main` 分支都会自动触发部署流程。
+
+详细的部署说明请参考 [DEPLOYMENT.md](./DEPLOYMENT.md)。
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+## 📄 许可证
+
+MIT License
