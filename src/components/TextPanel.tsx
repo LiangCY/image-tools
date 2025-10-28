@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useEditStore } from '../stores';
 import { TextElement } from '../types';
-import { TextRenderer } from '../utils/imageProcessor';
 import * as Select from '@radix-ui/react-select';
 import { 
   Plus, 
@@ -17,16 +16,34 @@ import { toast } from 'sonner';
 
 const TextPanel: React.FC = () => {
   const { 
-    images, 
     textElements, 
-    selectedTextId,
+    selectedElementId,
+    selectedElementType,
     addTextElement, 
     updateTextElement, 
     removeTextElement,
-    selectTextElement
+    selectElement,
+    canvasSettings
   } = useEditStore();
 
   const [newText, setNewText] = useState('');
+
+  // 根据背景色自动选择合适的文字颜色
+  const getContrastColor = (backgroundColor: string): string => {
+    // 移除 # 符号
+    const hex = backgroundColor.replace('#', '');
+    
+    // 转换为 RGB
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // 计算亮度
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    
+    // 如果背景较亮，返回黑色；如果背景较暗，返回白色
+    return brightness > 128 ? '#000000' : '#FFFFFF';
+  };
 
   // 颜色选项
   const colorOptions = [
@@ -47,8 +64,10 @@ const TextPanel: React.FC = () => {
     { value: '#008000', label: '深绿色', color: '#008000' },
   ];
 
-  const hasImages = images.length > 0;
-  const selectedText = textElements.find(t => t.id === selectedTextId);
+
+  const selectedText = textElements.find(text => 
+    text.id === selectedElementId && selectedElementType === 'text'
+  );
 
   // 添加新文字
   const handleAddText = () => {
@@ -57,10 +76,7 @@ const TextPanel: React.FC = () => {
       return;
     }
 
-    if (!hasImages) {
-      toast.error('请先添加图片');
-      return;
-    }
+
 
     const newTextElement: Omit<TextElement, 'id'> = {
       text: newText.trim(),
@@ -68,7 +84,7 @@ const TextPanel: React.FC = () => {
       y: 100,
       fontSize: 24,
       fontFamily: 'Arial, sans-serif',
-      color: '#000000',
+      color: getContrastColor(canvasSettings.backgroundColor),
       fontWeight: 'normal',
       fontStyle: 'normal',
       textAlign: 'left',
@@ -83,10 +99,6 @@ const TextPanel: React.FC = () => {
 
   // 快速添加预设文字
   const handleQuickAddText = (text: string) => {
-    if (!hasImages) {
-      toast.error('请先添加图片');
-      return;
-    }
 
     // 根据文字类型设置不同的样式
     let fontSize = 24;
@@ -116,7 +128,7 @@ const TextPanel: React.FC = () => {
       y: 100 + textElements.length * 20,
       fontSize,
       fontFamily: 'Arial, sans-serif',
-      color,
+      color: getContrastColor(canvasSettings.backgroundColor), // 使用自动选择的颜色
       fontWeight,
       fontStyle: 'normal',
       textAlign: 'left',
@@ -129,7 +141,7 @@ const TextPanel: React.FC = () => {
     setTimeout(() => {
       const newElement = textElements[textElements.length];
       if (newElement) {
-        selectTextElement(newElement.id);
+        selectElement(newElement.id, 'text');
       }
     }, 100);
     toast.success(`${text}已添加`);
@@ -143,8 +155,8 @@ const TextPanel: React.FC = () => {
 
   // 更新文字属性
   const updateText = (updates: Partial<TextElement>) => {
-    if (selectedTextId) {
-      updateTextElement(selectedTextId, updates);
+    if (selectedElementId && selectedElementType === 'text') {
+      updateTextElement(selectedElementId, updates);
     }
   };
 
@@ -164,12 +176,9 @@ const TextPanel: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* 状态提示 */}
-      <div className={`border rounded-lg p-3 ${hasImages ? 'bg-blue-50 border-blue-200' : 'bg-yellow-50 border-yellow-200'}`}>
-        <p className={`text-sm ${hasImages ? 'text-blue-800' : 'text-yellow-800'}`}>
-          {hasImages 
-            ? `已有 ${images.length} 张图片，可以添加文字`
-            : '请先添加图片才能添加文字'
-          }
+      <div className="border rounded-lg p-3 bg-blue-50 border-blue-200">
+        <p className="text-sm text-blue-800">
+          在画布上添加和编辑文字元素
         </p>
       </div>
 
@@ -185,11 +194,11 @@ const TextPanel: React.FC = () => {
             placeholder="输入要添加的文字..."
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
             rows={3}
-            disabled={!hasImages}
+disabled={false}
           />
           <button
             onClick={handleAddText}
-            disabled={!hasImages || !newText.trim()}
+disabled={!newText.trim()}
             className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -204,7 +213,7 @@ const TextPanel: React.FC = () => {
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => handleQuickAddText('标题文字')}
-                disabled={!hasImages}
+                disabled={false}
                 className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 title="添加标题文字"
               >
@@ -212,7 +221,7 @@ const TextPanel: React.FC = () => {
               </button>
               <button
                 onClick={() => handleQuickAddText('描述文字')}
-                disabled={!hasImages}
+                disabled={false}
                 className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 title="添加描述文字"
               >
@@ -220,7 +229,7 @@ const TextPanel: React.FC = () => {
               </button>
               <button
                 onClick={() => handleQuickAddText('水印')}
-                disabled={!hasImages}
+                disabled={false}
                 className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 title="添加水印文字"
               >
@@ -242,11 +251,11 @@ const TextPanel: React.FC = () => {
               <div
                 key={textElement.id}
                 className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                  selectedTextId === textElement.id
+                  selectedElementId === textElement.id && selectedElementType === 'text'
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
-                onClick={() => selectTextElement(textElement.id)}
+                onClick={() => selectElement(textElement.id, 'text')}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
@@ -457,30 +466,11 @@ const TextPanel: React.FC = () => {
                 </div>
               </div>
               
-              {/* 尺寸 */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">
-                    W 宽度
-                  </label>
-                  <input
-                    type="number"
-                    value={Math.round(TextRenderer.measureText(selectedText).width)}
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-600 cursor-not-allowed"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">
-                    H 高度
-                  </label>
-                  <input
-                    type="number"
-                    value={Math.round(TextRenderer.measureText(selectedText).height)}
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-600 cursor-not-allowed"
-                  />
-                </div>
+              {/* 尺寸信息 */}
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-600">
+                  💡 文字尺寸会根据字体大小自动调整，可以在画布上直接拖拽调整位置
+                </p>
               </div>
             </div>
 
@@ -537,7 +527,7 @@ const TextPanel: React.FC = () => {
       )}
 
       {/* 操作提示 */}
-      {!hasImages && (
+      {false && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
           <p className="text-sm text-yellow-800">
             💡 提示：请先在左侧添加图片，然后就可以在图片上添加文字了。
@@ -545,7 +535,7 @@ const TextPanel: React.FC = () => {
         </div>
       )}
 
-      {hasImages && textElements.length === 0 && (
+      {textElements.length === 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <p className="text-sm text-blue-800 font-medium mb-2">
             📝 如何添加文字：

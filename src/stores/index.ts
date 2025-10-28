@@ -6,7 +6,9 @@ import {
   SpliceSettings, 
   CompressionSettings,
   TextElement,
+  ImageElement,
   IconElement,
+  CanvasSettings,
   ProcessingProgress,
   HistoryRecord
 } from '../types';
@@ -36,38 +38,46 @@ const defaultCompressionSettings: CompressionSettings = {
   format: 'jpeg',
 };
 
+// 默认画布设置
+const defaultCanvasSettings: CanvasSettings = {
+  width: 800,
+  height: 600,
+  backgroundColor: '#ffffff',
+};
+
 interface EditStore extends EditState {
-  // 图片管理
-  addImages: (files: File[]) => Promise<void>;
-  removeImage: (id: string) => void;
-  selectImage: (id: string, multiSelect?: boolean) => void;
-  clearSelection: () => void;
-  reorderImages: (fromIndex: number, toIndex: number) => void;
+  // 画布设置
+  updateCanvasSettings: (settings: Partial<CanvasSettings>) => void;
   
-  // 工具切换
-  setActiveTool: (tool: EditTool) => void;
+  // 图片元素管理
+  addImageElement: (file: File) => Promise<void>;
+  updateImageElement: (id: string, updates: Partial<ImageElement>) => void;
+  removeImageElement: (id: string) => void;
   
-  // 拼接设置
-  updateSpliceSettings: (settings: Partial<SpliceSettings>) => void;
-  
-  // 压缩设置
-  updateCompressionSettings: (settings: Partial<CompressionSettings>) => void;
-  
-  // 文字元素
+  // 文字元素管理
   addTextElement: (element: Omit<TextElement, 'id'>) => void;
   updateTextElement: (id: string, updates: Partial<TextElement>) => void;
   removeTextElement: (id: string) => void;
-  selectTextElement: (id: string | null) => void;
   
-  // 图标元素
+  // 图标元素管理
   addIconElement: (element: Omit<IconElement, 'id'>) => void;
   updateIconElement: (id: string, updates: Partial<IconElement>) => void;
   removeIconElement: (id: string) => void;
   
-  // 画布控制
+  // 元素选择
+  selectElement: (id: string | null, type: 'image' | 'text' | 'icon' | null) => void;
+  
+  // 工具切换
+  setActiveTool: (tool: EditTool) => void;
+  
+  // 视图控制
   setZoom: (zoom: number) => void;
   setPan: (x: number, y: number) => void;
   resetView: () => void;
+  
+  // 兼容性方法（保留旧的设置）
+  updateSpliceSettings: (settings: Partial<SpliceSettings>) => void;
+  updateCompressionSettings: (settings: Partial<CompressionSettings>) => void;
   
   // 重置状态
   reset: () => void;
@@ -121,92 +131,97 @@ const createImageFile = async (file: File): Promise<ImageFile> => {
 
 // 编辑状态store
 export const useEditStore = create<EditStore>((set, get) => ({
-  images: [],
-  selectedImageIds: [],
-  spliceSettings: defaultSpliceSettings,
-  compressionSettings: defaultCompressionSettings,
+  // 画布设置
+  canvasSettings: defaultCanvasSettings,
+  
+  // 元素管理
+  imageElements: [],
   textElements: [],
   iconElements: [],
+  
+  // 选择状态
+  selectedElementId: null,
+  selectedElementType: null,
+  
+  // 工具和视图
   activeTool: 'canvas',
-  canvasWidth: 800,
-  canvasHeight: 600,
   zoom: 1,
   panX: 0,
   panY: 0,
-  selectedTextId: null,
+  
+  // 兼容性设置
+  spliceSettings: defaultSpliceSettings,
+  compressionSettings: defaultCompressionSettings,
 
-  addImages: async (files: File[]) => {
+  // 画布设置
+  updateCanvasSettings: (settings: Partial<CanvasSettings>) => {
+    set(state => ({
+      canvasSettings: { ...state.canvasSettings, ...settings }
+    }));
+  },
+
+  // 图片元素管理
+  addImageElement: async (file: File) => {
     try {
-      const imageFiles = await Promise.all(
-        files.map(file => createImageFile(file))
-      );
-      set(state => ({
-        images: [...state.images, ...imageFiles]
-      }));
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      
+      return new Promise<void>((resolve, reject) => {
+        img.onload = () => {
+          const imageElement: ImageElement = {
+            id: generateId(),
+            imageUrl: url,
+            x: 100,
+            y: 100,
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+            rotation: 0,
+            opacity: 1,
+            scaleX: 1,
+            scaleY: 1,
+          };
+          
+          set(state => ({
+            imageElements: [...state.imageElements, imageElement]
+          }));
+          resolve();
+        };
+        
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Failed to load image'));
+        };
+        
+        img.src = url;
+      });
     } catch (error) {
-      console.error('Failed to add images:', error);
+      console.error('Failed to add image element:', error);
     }
   },
 
-  removeImage: (id: string) => {
+  updateImageElement: (id: string, updates: Partial<ImageElement>) => {
+    set(state => ({
+      imageElements: state.imageElements.map(element =>
+        element.id === id ? { ...element, ...updates } : element
+      )
+    }));
+  },
+
+  removeImageElement: (id: string) => {
     set(state => {
-      const image = state.images.find(img => img.id === id);
-      if (image) {
-        URL.revokeObjectURL(image.url);
+      const element = state.imageElements.find(el => el.id === id);
+      if (element) {
+        URL.revokeObjectURL(element.imageUrl);
       }
       return {
-        images: state.images.filter(img => img.id !== id),
-        selectedImageIds: state.selectedImageIds.filter(selectedId => selectedId !== id)
+        imageElements: state.imageElements.filter(element => element.id !== id),
+        selectedElementId: state.selectedElementId === id ? null : state.selectedElementId,
+        selectedElementType: state.selectedElementId === id ? null : state.selectedElementType,
       };
     });
   },
 
-  selectImage: (id: string, multiSelect = false) => {
-    set(state => {
-      if (multiSelect) {
-        const isSelected = state.selectedImageIds.includes(id);
-        return {
-          selectedImageIds: isSelected
-            ? state.selectedImageIds.filter(selectedId => selectedId !== id)
-            : [...state.selectedImageIds, id]
-        };
-      } else {
-        return {
-          selectedImageIds: [id]
-        };
-      }
-    });
-  },
-
-  clearSelection: () => {
-    set({ selectedImageIds: [] });
-  },
-
-  reorderImages: (fromIndex: number, toIndex: number) => {
-    set(state => {
-      const newImages = [...state.images];
-      const [movedImage] = newImages.splice(fromIndex, 1);
-      newImages.splice(toIndex, 0, movedImage);
-      return { images: newImages };
-    });
-  },
-
-  setActiveTool: (tool: EditTool) => {
-    set({ activeTool: tool });
-  },
-
-  updateSpliceSettings: (settings: Partial<SpliceSettings>) => {
-    set(state => ({
-      spliceSettings: { ...state.spliceSettings, ...settings }
-    }));
-  },
-
-  updateCompressionSettings: (settings: Partial<CompressionSettings>) => {
-    set(state => ({
-      compressionSettings: { ...state.compressionSettings, ...settings }
-    }));
-  },
-
+  // 文字元素管理
   addTextElement: (element: Omit<TextElement, 'id'>) => {
     set(state => ({
       textElements: [...state.textElements, { ...element, id: generateId() }]
@@ -224,14 +239,12 @@ export const useEditStore = create<EditStore>((set, get) => ({
   removeTextElement: (id: string) => {
     set(state => ({
       textElements: state.textElements.filter(element => element.id !== id),
-      selectedTextId: state.selectedTextId === id ? null : state.selectedTextId
+      selectedElementId: state.selectedElementId === id ? null : state.selectedElementId,
+      selectedElementType: state.selectedElementId === id ? null : state.selectedElementType,
     }));
   },
 
-  selectTextElement: (id: string | null) => {
-    set({ selectedTextId: id });
-  },
-
+  // 图标元素管理
   addIconElement: (element: Omit<IconElement, 'id'>) => {
     set(state => ({
       iconElements: [...state.iconElements, { ...element, id: generateId() }]
@@ -248,10 +261,39 @@ export const useEditStore = create<EditStore>((set, get) => ({
 
   removeIconElement: (id: string) => {
     set(state => ({
-      iconElements: state.iconElements.filter(element => element.id !== id)
+      iconElements: state.iconElements.filter(element => element.id !== id),
+      selectedElementId: state.selectedElementId === id ? null : state.selectedElementId,
+      selectedElementType: state.selectedElementId === id ? null : state.selectedElementType,
     }));
   },
 
+  // 元素选择
+  selectElement: (id: string | null, type: 'image' | 'text' | 'icon' | null) => {
+    set({ 
+      selectedElementId: id,
+      selectedElementType: type 
+    });
+  },
+
+  // 工具切换
+  setActiveTool: (tool: EditTool) => {
+    set({ activeTool: tool });
+  },
+
+  // 兼容性方法
+  updateSpliceSettings: (settings: Partial<SpliceSettings>) => {
+    set(state => ({
+      spliceSettings: { ...state.spliceSettings, ...settings }
+    }));
+  },
+
+  updateCompressionSettings: (settings: Partial<CompressionSettings>) => {
+    set(state => ({
+      compressionSettings: { ...state.compressionSettings, ...settings }
+    }));
+  },
+
+  // 视图控制
   setZoom: (zoom: number) => {
     set({ zoom: Math.max(0.1, Math.min(5, zoom)) });
   },
@@ -264,23 +306,25 @@ export const useEditStore = create<EditStore>((set, get) => ({
     set({ zoom: 1, panX: 0, panY: 0 });
   },
 
+  // 重置状态
   reset: () => {
     const state = get();
     // 清理图片URL
-    state.images.forEach(img => URL.revokeObjectURL(img.url));
+    state.imageElements.forEach(element => URL.revokeObjectURL(element.imageUrl));
     
     set({
-      images: [],
-      selectedImageIds: [],
-      spliceSettings: defaultSpliceSettings,
-      compressionSettings: defaultCompressionSettings,
+      canvasSettings: defaultCanvasSettings,
+      imageElements: [],
       textElements: [],
       iconElements: [],
+      selectedElementId: null,
+      selectedElementType: null,
       activeTool: 'canvas',
       zoom: 1,
       panX: 0,
       panY: 0,
-      selectedTextId: null,
+      spliceSettings: defaultSpliceSettings,
+      compressionSettings: defaultCompressionSettings,
     });
   },
 }));

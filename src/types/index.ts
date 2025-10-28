@@ -79,6 +79,20 @@ export interface TextElement {
   opacity: number;
 }
 
+// 图片元素类型
+export interface ImageElement {
+  id: string;
+  imageUrl: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  opacity: number;
+  scaleX: number;
+  scaleY: number;
+}
+
 // 图标元素类型
 export interface IconElement {
   id: string;
@@ -101,23 +115,39 @@ export interface ExportSettings {
 }
 
 // 编辑工具类型
-export type EditTool = 'splice' | 'canvas' | 'text' | 'icon' | 'export';
+export type EditTool = 'canvas' | 'image' | 'text' | 'icon' | 'export';
+
+// 画布设置类型
+export interface CanvasSettings {
+  width: number;
+  height: number;
+  backgroundColor: string;
+  backgroundImage?: string;
+}
 
 // 编辑状态类型
 export interface EditState {
-  images: ImageFile[];
-  selectedImageIds: string[];
-  spliceSettings: SpliceSettings;
-  compressionSettings: CompressionSettings;
+  // 画布设置
+  canvasSettings: CanvasSettings;
+  
+  // 元素管理
+  imageElements: ImageElement[];
   textElements: TextElement[];
   iconElements: IconElement[];
+  
+  // 选择状态
+  selectedElementId: string | null;
+  selectedElementType: 'image' | 'text' | 'icon' | null;
+  
+  // 工具和视图
   activeTool: EditTool;
-  canvasWidth: number;
-  canvasHeight: number;
   zoom: number;
   panX: number;
   panY: number;
-  selectedTextId: string | null;
+  
+  // 旧的设置（保留兼容性）
+  spliceSettings: SpliceSettings;
+  compressionSettings: CompressionSettings;
 }
 
 // 处理进度类型
