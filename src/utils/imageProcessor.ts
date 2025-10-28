@@ -386,12 +386,38 @@ export class TextRenderer {
     
     // 应用旋转
     if (element.rotation !== 0) {
-      ctx.translate(element.x, element.y);
+      // 计算文字的几何中心点
+      const { width, height } = this.measureText(element);
+      let centerX = element.x;
+      let centerY = element.y - height / 2;
+      
+      // 根据对齐方式调整中心点的 x 坐标
+      switch (element.textAlign) {
+        case 'center':
+          // 居中对齐时，x 坐标已经是中心
+          break;
+        case 'right':
+          // 右对齐时，需要向左偏移宽度的一半
+          centerX = element.x - width / 2;
+          break;
+        case 'left':
+        default:
+          // 左对齐时，需要向右偏移宽度的一半
+          centerX = element.x + width / 2;
+          break;
+      }
+      
+      // 以几何中心为旋转中心
+      ctx.translate(centerX, centerY);
       ctx.rotate((element.rotation * Math.PI) / 180);
       
-      // 绘制多行文字，第一行从基线位置开始
+      // 计算文字相对于旋转中心的偏移
+      const textOffsetX = element.x - centerX;
+      const textOffsetY = element.y - centerY;
+      
+      // 绘制多行文字
       lines.forEach((line, index) => {
-        ctx.fillText(line, 0, index * lineHeight);
+        ctx.fillText(line, textOffsetX, textOffsetY + index * lineHeight);
       });
       
       // 绘制选中状态的边框
@@ -423,31 +449,57 @@ export class TextRenderer {
     
     ctx.save();
     
-    // 设置边框样式
-    ctx.strokeStyle = '#3b82f6';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
-    ctx.globalAlpha = 0.8;
+    // 设置边框样式 - 优化为更明显的显示
+    ctx.strokeStyle = '#2563eb'; // 更深的蓝色
+    ctx.lineWidth = 3; // 增加线宽
+    ctx.setLineDash([8, 4]); // 调整虚线样式，更长的实线段
+    ctx.globalAlpha = 1; // 完全不透明
     
     let x, y;
     
     if (isRotated) {
-      // 对于旋转的多行文字，需要根据对齐方式计算边框位置
-      // 文字从 (0, 0) 开始绘制，第一行基线在 y=0
+      // 对于旋转的文字，边框应该在旋转后的坐标系中绘制
+      // 此时我们已经在以几何中心为原点的坐标系中
+      // 需要计算文字相对于几何中心的偏移，然后围绕它绘制边框
+      
+      const { width: textWidth, height: textHeight } = this.measureText(element);
+      
+      // 计算几何中心
+      let centerX = element.x;
+      let centerY = element.y - textHeight / 2;
+      
       switch (element.textAlign) {
         case 'center':
-          x = -width / 2;
           break;
         case 'right':
-          x = -width;
+          centerX = element.x - textWidth / 2;
           break;
         case 'left':
         default:
-          x = 0;
+          centerX = element.x + textWidth / 2;
           break;
       }
-      // 边框顶部应该是第一行的顶部
-      y = -element.fontSize;
+      
+      // 文字相对于几何中心的偏移
+      const textOffsetX = element.x - centerX;
+      const textOffsetY = element.y - centerY;
+      
+      // 边框应该围绕文字的边界，考虑对齐方式
+      switch (element.textAlign) {
+        case 'center':
+          x = textOffsetX - textWidth / 2;
+          break;
+        case 'right':
+          x = textOffsetX - textWidth;
+          break;
+        case 'left':
+        default:
+          x = textOffsetX;
+          break;
+      }
+      
+      // 边框顶部位置
+      y = textOffsetY - element.fontSize;
     } else {
       // 非旋转文字的边框计算
       switch (element.textAlign) {
@@ -466,29 +518,169 @@ export class TextRenderer {
     }
 
     
-    // 绘制选中边框
+    // 确定边框的宽度和高度
+    const borderWidth = width;
+    const borderHeight = height;
+    
+    // 先绘制阴影边框（白色描边提高对比度）
+    ctx.save();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 5;
+    ctx.setLineDash([8, 4]);
+    ctx.globalAlpha = 0.8;
     ctx.strokeRect(
       x - padding,
       y - padding,
-      width + padding * 2,
-      height + padding * 2
+      borderWidth + padding * 2,
+      borderHeight + padding * 2
+    );
+    ctx.restore();
+    
+    // 绘制主选中边框
+    ctx.strokeRect(
+      x - padding,
+      y - padding,
+      borderWidth + padding * 2,
+      borderHeight + padding * 2
     );
     
-    // 绘制控制点
+    // 绘制控制点 - 优化为更明显的圆形控制点
     const controlPoints = [
       { x: x - padding, y: y - padding }, // 左上
-      { x: x + width + padding, y: y - padding }, // 右上
-      { x: x + width + padding, y: y + height + padding }, // 右下
-      { x: x - padding, y: y + height + padding }, // 左下
+      { x: x + borderWidth + padding, y: y - padding }, // 右上
+      { x: x + borderWidth + padding, y: y + borderHeight + padding }, // 右下
+      { x: x - padding, y: y + borderHeight + padding }, // 左下
     ];
     
     ctx.setLineDash([]);
-    ctx.fillStyle = '#3b82f6';
     controlPoints.forEach(point => {
-      ctx.fillRect(point.x - 3, point.y - 3, 6, 6);
+      // 绘制白色外圈
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      // 绘制蓝色内圈
+      ctx.fillStyle = '#2563eb';
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+      ctx.fill();
     });
     
     ctx.restore();
+  }
+
+  // 检测是否点击了控制点
+  static getClickedControlPoint(
+    element: TextElement,
+    pointX: number,
+    pointY: number
+  ): { index: number; type: 'corner' } | null {
+    const { width, height } = this.measureText(element);
+    const padding = 4;
+    
+    // 计算控制点位置
+    let x, y;
+    
+    if (element.rotation !== 0) {
+      // 旋转文字的控制点计算
+      const { width: textWidth, height: textHeight } = this.measureText(element);
+      let centerX = element.x;
+      let centerY = element.y - textHeight / 2;
+      
+      switch (element.textAlign) {
+        case 'center':
+          break;
+        case 'right':
+          centerX = element.x - textWidth / 2;
+          break;
+        case 'left':
+        default:
+          centerX = element.x + textWidth / 2;
+          break;
+      }
+      
+      const textOffsetX = element.x - centerX;
+      const textOffsetY = element.y - centerY;
+      
+      switch (element.textAlign) {
+        case 'center':
+          x = textOffsetX - textWidth / 2;
+          break;
+        case 'right':
+          x = textOffsetX - textWidth;
+          break;
+        case 'left':
+        default:
+          x = textOffsetX;
+          break;
+      }
+      
+      y = textOffsetY - element.fontSize;
+      
+      // 旋转控制点坐标
+      const cos = Math.cos((element.rotation * Math.PI) / 180);
+      const sin = Math.sin((element.rotation * Math.PI) / 180);
+      
+      const controlPoints = [
+        { x: x - padding, y: y - padding }, // 左上
+        { x: x + width + padding, y: y - padding }, // 右上
+        { x: x + width + padding, y: y + height + padding }, // 右下
+        { x: x - padding, y: y + height + padding }, // 左下
+      ];
+      
+      // 将控制点坐标转换到全局坐标系
+      const globalControlPoints = controlPoints.map(point => ({
+        x: centerX + (cos * point.x - sin * point.y),
+        y: centerY + (sin * point.x + cos * point.y)
+      }));
+      
+      // 检测点击
+      for (let i = 0; i < globalControlPoints.length; i++) {
+        const point = globalControlPoints[i];
+        const distance = Math.sqrt(
+          Math.pow(pointX - point.x, 2) + Math.pow(pointY - point.y, 2)
+        );
+        if (distance <= 8) { // 控制点半径 + 容错
+          return { index: i, type: 'corner' };
+        }
+      }
+    } else {
+      // 非旋转文字的控制点计算
+      switch (element.textAlign) {
+        case 'center':
+          x = element.x - width / 2;
+          break;
+        case 'right':
+          x = element.x - width;
+          break;
+        case 'left':
+        default:
+          x = element.x;
+          break;
+      }
+      y = element.y - element.fontSize;
+      
+      const controlPoints = [
+        { x: x - padding, y: y - padding }, // 左上
+        { x: x + width + padding, y: y - padding }, // 右上
+        { x: x + width + padding, y: y + height + padding }, // 右下
+        { x: x - padding, y: y + height + padding }, // 左下
+      ];
+      
+      // 检测点击
+      for (let i = 0; i < controlPoints.length; i++) {
+        const point = controlPoints[i];
+        const distance = Math.sqrt(
+          Math.pow(pointX - point.x, 2) + Math.pow(pointY - point.y, 2)
+        );
+        if (distance <= 8) { // 控制点半径 + 容错
+          return { index: i, type: 'corner' };
+        }
+      }
+    }
+    
+    return null;
   }
 
   static measureText(
@@ -557,9 +749,23 @@ export class TextRenderer {
     
     // 如果有旋转，需要进行坐标变换
     if (element.rotation !== 0) {
-      const centerX = element.x;
-      // 旋转中心就是文字的基线位置
-      const centerY = element.y;
+      // 计算文字的几何中心点（与渲染时保持一致）
+      const { width, height } = this.measureText(element);
+      let centerX = element.x;
+      let centerY = element.y - height / 2;
+      
+      // 根据对齐方式调整中心点的 x 坐标
+      switch (element.textAlign) {
+        case 'center':
+          break;
+        case 'right':
+          centerX = element.x - width / 2;
+          break;
+        case 'left':
+        default:
+          centerX = element.x + width / 2;
+          break;
+      }
       
       // 将点击点转换到文字的本地坐标系（逆旋转）
       const cos = Math.cos((-element.rotation * Math.PI) / 180);

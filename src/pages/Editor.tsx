@@ -27,8 +27,12 @@ const Editor: React.FC = () => {
   const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [isDraggingText, setIsDraggingText] = useState(false);
+  const [isDraggingControlPoint, setIsDraggingControlPoint] = useState(false);
+  const [draggedControlPoint, setDraggedControlPoint] = useState<{ index: number; type: 'corner' } | null>(null);
   const [dragStartScreenPos, setDragStartScreenPos] = useState<{ x: number; y: number } | null>(null);
   const [dragStartTextPos, setDragStartTextPos] = useState<{ x: number; y: number } | null>(null);
+  const [dragStartFontSize, setDragStartFontSize] = useState<number | null>(null);
+  const [cursorStyle, setCursorStyle] = useState<string>('default');
   const animationFrameRef = useRef<number | null>(null);
   const lastUpdateTime = useRef<number>(0);
 
@@ -52,6 +56,7 @@ const Editor: React.FC = () => {
     addTextElement,
     selectTextElement,
     updateTextElement,
+    removeTextElement,
     reorderImages
   } = useEditStore();
 
@@ -101,6 +106,32 @@ const Editor: React.FC = () => {
       }
     };
   }, []);
+
+  // 键盘事件处理
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // 检查是否在输入框中，如果是则不处理
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
+        return;
+      }
+
+      // 处理 Backspace 或 Delete 键
+      if ((event.key === 'Backspace' || event.key === 'Delete') && selectedTextId) {
+        event.preventDefault();
+        removeTextElement(selectedTextId);
+        selectTextElement(null); // 清除选中状态
+      }
+    };
+
+    // 添加事件监听器
+    document.addEventListener('keydown', handleKeyDown);
+
+    // 清理函数
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedTextId, removeTextElement, selectTextElement]);
 
   const handleToolSelect = (tool: typeof activeTool) => {
     setActiveTool(tool);
@@ -163,6 +194,23 @@ const Editor: React.FC = () => {
 
     const { x, y } = getCanvasCoordinates(event);
     
+    // 首先检查是否点击了选中文字的控制点
+    if (selectedTextId) {
+      const selectedText = textElements.find(t => t.id === selectedTextId);
+      if (selectedText) {
+        const controlPoint = TextRenderer.getClickedControlPoint(selectedText, x, y);
+        if (controlPoint) {
+          // 开始拖拽控制点
+          setIsDraggingControlPoint(true);
+          setDraggedControlPoint(controlPoint);
+          setDragStartScreenPos({ x: event.clientX, y: event.clientY });
+          setDragStartFontSize(selectedText.fontSize);
+          setDragStartTextPos({ x: selectedText.x, y: selectedText.y });
+          return;
+        }
+      }
+    }
+    
     // 检查是否点击了文字元素
     let clickedTextId: string | null = null;
     for (let i = textElements.length - 1; i >= 0; i--) {
@@ -191,51 +239,265 @@ const Editor: React.FC = () => {
 
   // 画布鼠标移动处理
   const handleCanvasMouseMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    // 处理控制点拖拽
+    if (isDraggingControlPoint && selectedTextId && draggedControlPoint && dragStartScreenPos && dragStartFontSize && dragStartTextPos) {
+      const now = performance.now();
+      if (now - lastUpdateTime.current < 16) return; // 60fps 限制
+      
+      const selectedText = textElements.find(t => t.id === selectedTextId);
+      if (!selectedText) return;
+      
+      // 计算鼠标移动距离（屏幕坐标）
+      const deltaX = event.clientX - dragStartScreenPos.x;
+      const deltaY = event.clientY - dragStartScreenPos.y;
+      
+      // 将屏幕坐标转换为画布坐标
+      const { x: canvasDeltaX, y: canvasDeltaY } = screenDeltaToCanvasDelta(deltaX, deltaY);
+      
+      let scaleFactor = 1;
+      let newX = dragStartTextPos.x;
+      let newY = dragStartTextPos.y;
+      
+      // 计算缩放因子
+      switch (draggedControlPoint.index) {
+        case 0: // 左上角
+          scaleFactor = 1 + (-canvasDeltaX - canvasDeltaY) / 200;
+          break;
+        case 1: // 右上角
+          scaleFactor = 1 + (canvasDeltaX - canvasDeltaY) / 200;
+          break;
+        case 2: // 右下角
+          scaleFactor = 1 + (canvasDeltaX + canvasDeltaY) / 200;
+          break;
+        case 3: // 左下角
+          scaleFactor = 1 + (-canvasDeltaX + canvasDeltaY) / 200;
+          break;
+        default:
+          scaleFactor = 1;
+      }
+      
+      // 限制缩放范围
+      scaleFactor = Math.max(0.3, Math.min(3, scaleFactor));
+      
+      // 获取初始文字的边界信息
+      const initialTextElement = { ...selectedText, fontSize: dragStartFontSize };
+      const { width: initialWidth, height: initialHeight } = TextRenderer.measureText(initialTextElement);
+      
+      // 计算初始边界框的四个角点
+      let initialLeft, initialTop, initialRight, initialBottom;
+      
+      switch (selectedText.textAlign) {
+        case 'center':
+          initialLeft = dragStartTextPos.x - initialWidth / 2;
+          initialRight = dragStartTextPos.x + initialWidth / 2;
+          break;
+        case 'right':
+          initialLeft = dragStartTextPos.x - initialWidth;
+          initialRight = dragStartTextPos.x;
+          break;
+        case 'left':
+        default:
+          initialLeft = dragStartTextPos.x;
+          initialRight = dragStartTextPos.x + initialWidth;
+          break;
+      }
+      
+      initialTop = dragStartTextPos.y - dragStartFontSize;
+      initialBottom = dragStartTextPos.y + initialHeight - dragStartFontSize;
+      
+      // 计算新的尺寸
+      const newWidth = initialWidth * scaleFactor;
+      const newHeight = initialHeight * scaleFactor;
+      
+      // 根据控制点确定固定点，计算新位置
+      let fixedX, fixedY;
+      
+      switch (draggedControlPoint.index) {
+        case 0: // 左上角 - 固定右下角
+          fixedX = initialRight;
+          fixedY = initialBottom;
+          // 新的左上角位置
+          const newLeft0 = fixedX - newWidth;
+          const newTop0 = fixedY - newHeight;
+          // 计算新的文字基线位置
+          switch (selectedText.textAlign) {
+            case 'center':
+              newX = newLeft0 + newWidth / 2;
+              break;
+            case 'right':
+              newX = newLeft0 + newWidth;
+              break;
+            case 'left':
+            default:
+              newX = newLeft0;
+              break;
+          }
+          newY = newTop0 + dragStartFontSize * scaleFactor;
+          break;
+          
+        case 1: // 右上角 - 固定左下角
+          fixedX = initialLeft;
+          fixedY = initialBottom;
+          // 新的右上角位置
+          const newRight1 = fixedX + newWidth;
+          const newTop1 = fixedY - newHeight;
+          // 计算新的文字基线位置
+          switch (selectedText.textAlign) {
+            case 'center':
+              newX = fixedX + newWidth / 2;
+              break;
+            case 'right':
+              newX = newRight1;
+              break;
+            case 'left':
+            default:
+              newX = fixedX;
+              break;
+          }
+          newY = newTop1 + dragStartFontSize * scaleFactor;
+          break;
+          
+        case 2: // 右下角 - 固定左上角
+          fixedX = initialLeft;
+          fixedY = initialTop;
+          // 新的右下角位置
+          const newRight2 = fixedX + newWidth;
+          const newBottom2 = fixedY + newHeight;
+          // 计算新的文字基线位置
+          switch (selectedText.textAlign) {
+            case 'center':
+              newX = fixedX + newWidth / 2;
+              break;
+            case 'right':
+              newX = newRight2;
+              break;
+            case 'left':
+            default:
+              newX = fixedX;
+              break;
+          }
+          newY = fixedY + dragStartFontSize * scaleFactor;
+          break;
+          
+        case 3: // 左下角 - 固定右上角
+          fixedX = initialRight;
+          fixedY = initialTop;
+          // 新的左下角位置
+          const newLeft3 = fixedX - newWidth;
+          const newBottom3 = fixedY + newHeight;
+          // 计算新的文字基线位置
+          switch (selectedText.textAlign) {
+            case 'center':
+              newX = newLeft3 + newWidth / 2;
+              break;
+            case 'right':
+              newX = fixedX;
+              break;
+            case 'left':
+            default:
+              newX = newLeft3;
+              break;
+          }
+          newY = fixedY + dragStartFontSize * scaleFactor;
+          break;
+      }
+      
+      // 计算新的字体大小
+      const newFontSize = Math.round(dragStartFontSize * scaleFactor);
+      const clampedFontSize = Math.max(8, Math.min(200, newFontSize));
+      
+      // 更新文字元素（包括大小和位置）
+      updateTextElement(selectedTextId, { 
+        fontSize: clampedFontSize,
+        x: newX,
+        y: newY
+      });
+      lastUpdateTime.current = now;
+      return;
+    }
+    
+    // 处理文字拖拽
     if (!isDraggingText || !selectedTextId || !dragStartScreenPos || !dragStartTextPos || !canvasRef.current) return;
 
+    // 时间节流：限制更新频率
     const now = performance.now();
+    if (now - lastUpdateTime.current < 16) return; // 60fps 限制
     
-    // 取消之前的动画帧
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
+    // 计算屏幕坐标的偏移量
+    const screenDeltaX = event.clientX - dragStartScreenPos.x;
+    const screenDeltaY = event.clientY - dragStartScreenPos.y;
+    
+    // 将屏幕坐标偏移量转换为画布坐标偏移量
+    const { x: canvasDeltaX, y: canvasDeltaY } = screenDeltaToCanvasDelta(screenDeltaX, screenDeltaY);
+    
+    // 计算新的文字位置
+    const newX = dragStartTextPos.x + canvasDeltaX;
+    const newY = dragStartTextPos.y + canvasDeltaY;
+    
+    // 添加边界检查（放宽边界限制，减少抖动）
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const minX = -100; // 允许文字部分超出画布
+    const minY = -50;
+    const maxX = canvas.width + 100;
+    const maxY = canvas.height + 50;
+    
+    const clampedX = Math.max(minX, Math.min(maxX, newX));
+    const clampedY = Math.max(minY, Math.min(maxY, newY));
+    
+    // 检查位置是否真的发生了变化，避免不必要的更新
+    const currentText = textElements.find(t => t.id === selectedTextId);
+    if (currentText && 
+        Math.abs(currentText.x - clampedX) < 0.5 && 
+        Math.abs(currentText.y - clampedY) < 0.5) {
+      return; // 位置变化太小，跳过更新
+    }
+    
+    // 更新时间戳
+    lastUpdateTime.current = now;
+    
+    // 更新文字位置
+    updateTextElement(selectedTextId, {
+      x: clampedX,
+      y: clampedY
+    });
+  }, [isDraggingText, selectedTextId, dragStartScreenPos, dragStartTextPos, updateTextElement, textElements]);
+
+  // 处理鼠标悬停检测（用于改变鼠标样式）
+  const handleCanvasMouseHover = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isDraggingText || isDraggingControlPoint || activeTool !== 'text') {
+      return;
     }
 
-    // 使用 requestAnimationFrame 来优化性能
-    animationFrameRef.current = requestAnimationFrame(() => {
-      // 时间节流：限制更新频率到 60fps
-      if (now - lastUpdateTime.current < 16) return;
-      lastUpdateTime.current = now;
-      
-      // 计算屏幕坐标的偏移量
-      const screenDeltaX = event.clientX - dragStartScreenPos.x;
-      const screenDeltaY = event.clientY - dragStartScreenPos.y;
-      
-      // 将屏幕坐标偏移量转换为画布坐标偏移量
-      const { x: canvasDeltaX, y: canvasDeltaY } = screenDeltaToCanvasDelta(screenDeltaX, screenDeltaY);
-      
-      // 计算新的文字位置
-      const newX = dragStartTextPos.x + canvasDeltaX;
-      const newY = dragStartTextPos.y + canvasDeltaY;
-      
-      // 添加边界检查
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      
-      const minX = 0;
-      const minY = 20;
-      const maxX = canvas.width - 50;
-      const maxY = canvas.height - 10;
-      
-      const clampedX = Math.max(minX, Math.min(maxX, newX));
-      const clampedY = Math.max(minY, Math.min(maxY, newY));
-      
-      // 更新文字位置
-      updateTextElement(selectedTextId, {
-        x: clampedX,
-        y: clampedY
-      });
-    });
-  }, [isDraggingText, selectedTextId, dragStartScreenPos, dragStartTextPos, updateTextElement]);
+    const { x, y } = getCanvasCoordinates(event);
+    
+    // 检查是否悬停在选中文字的控制点上
+    if (selectedTextId) {
+      const selectedText = textElements.find(t => t.id === selectedTextId);
+      if (selectedText) {
+        const controlPoint = TextRenderer.getClickedControlPoint(selectedText, x, y);
+        if (controlPoint) {
+          // 根据控制点位置设置不同的鼠标样式
+          const cursors = ['nw-resize', 'ne-resize', 'se-resize', 'sw-resize'];
+          setCursorStyle(cursors[controlPoint.index]);
+          return;
+        }
+      }
+    }
+    
+    // 检查是否悬停在文字上
+    for (let i = textElements.length - 1; i >= 0; i--) {
+      const textElement = textElements[i];
+      if (TextRenderer.isPointInText(textElement, x, y)) {
+        setCursorStyle('move');
+        return;
+      }
+    }
+    
+    // 默认鼠标样式
+    setCursorStyle('default');
+  }, [activeTool, selectedTextId, textElements, isDraggingText, isDraggingControlPoint, getCanvasCoordinates]);
 
   // 画布鼠标释放处理
   const handleCanvasMouseUp = useCallback(() => {
@@ -245,9 +507,13 @@ const Editor: React.FC = () => {
       animationFrameRef.current = null;
     }
     
+    // 重置所有拖拽状态
     setIsDraggingText(false);
+    setIsDraggingControlPoint(false);
+    setDraggedControlPoint(null);
     setDragStartScreenPos(null);
     setDragStartTextPos(null);
+    setDragStartFontSize(null);
   }, []);
 
 
@@ -518,18 +784,16 @@ const Editor: React.FC = () => {
             >
               <canvas
                 ref={canvasRef}
-                className={`max-w-full max-h-full border border-gray-300 bg-white shadow-lg ${
-                  activeTool === 'text' 
-                    ? isDraggingText 
-                      ? 'cursor-grabbing' 
-                      : 'cursor-pointer'
-                    : 'cursor-default'
-                }`}
+                className="max-w-full max-h-full border border-gray-300 bg-white shadow-lg"
                 style={{
                   imageRendering: 'pixelated',
+                  cursor: isDraggingText ? 'grabbing' : isDraggingControlPoint ? 'grabbing' : cursorStyle,
                 }}
                 onMouseDown={handleCanvasMouseDown}
-                onMouseMove={handleCanvasMouseMove}
+                onMouseMove={(e) => {
+                  handleCanvasMouseMove(e);
+                  handleCanvasMouseHover(e);
+                }}
                 onMouseUp={handleCanvasMouseUp}
                 onMouseLeave={handleCanvasMouseUp}
               />

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useEditStore } from '../stores';
 import { generatePresets } from '../utils/canvasPresets';
+import * as Select from '@radix-ui/react-select';
 import { 
   AlignLeft, 
   AlignCenter, 
@@ -16,7 +17,9 @@ import {
   Palette,
   Link,
   Unlink,
-  Images
+  Images,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 
 const CanvasPanel: React.FC = () => {
@@ -285,12 +288,12 @@ const CanvasPanel: React.FC = () => {
           <div className="space-y-3">
             <div className="flex space-x-2">
               <div className="flex-1 relative">
-                <select
+                <Select.Root
                   value={spliceSettings.canvasPreset?.split(' ')[0] || ''}
-                  onChange={(e) => {
-                    if (e.target.value) {
+                  onValueChange={(value) => {
+                    if (value) {
                       // 查找比例
-                      const ratio = baseRatios.find(r => r.name === e.target.value);
+                      const ratio = baseRatios.find(r => r.name === value);
                       if (ratio) {
                         const orientation = spliceSettings.canvasOrientation;
                         const presetName = `${ratio.name} (${orientation === 'landscape' ? '横向' : '纵向'})`;
@@ -300,29 +303,88 @@ const CanvasPanel: React.FC = () => {
                       
                       // 查找纸张
                       const presets = generatePresets(spliceSettings.canvasOrientation);
-                      const preset = presets.find(p => p.name.startsWith(e.target.value));
+                      const preset = presets.find(p => p.name.startsWith(value));
                       if (preset) {
                         handleCanvasPresetChange(preset.name);
                       }
                     }
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="">选择预设</option>
-                  <optgroup label="常用比例">
-                    {baseRatios.map((ratio) => (
-                      <option key={ratio.name} value={ratio.name}>
-                        {ratio.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="纸张尺寸">
-                    <option value="A4">A4</option>
-                    <option value="16K">16K</option>
-                    <option value="Letter">Letter</option>
-                    <option value="Legal">Legal</option>
-                  </optgroup>
-                </select>
+                  <Select.Trigger className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white flex items-center justify-between hover:border-gray-400 transition-colors">
+                    <Select.Value placeholder="选择预设" />
+                    <Select.Icon>
+                      <ChevronDown className="w-4 h-4 text-gray-500" />
+                    </Select.Icon>
+                  </Select.Trigger>
+                  
+                  <Select.Portal>
+                    <Select.Content className="bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                      <Select.Viewport className="p-1">
+                        <Select.Group>
+                          <Select.Label className="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                            常用比例
+                          </Select.Label>
+                          {baseRatios.map((ratio) => (
+                            <Select.Item
+                              key={ratio.name}
+                              value={ratio.name}
+                              className="relative flex items-center px-3 py-2 text-sm text-gray-900 cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none rounded data-[highlighted]:bg-blue-50"
+                            >
+                              <Select.ItemText>{ratio.name}</Select.ItemText>
+                              <Select.ItemIndicator className="absolute right-3">
+                                <Check className="w-4 h-4 text-blue-600" />
+                              </Select.ItemIndicator>
+                            </Select.Item>
+                          ))}
+                        </Select.Group>
+                        
+                        <Select.Separator className="h-px bg-gray-200 my-1" />
+                        
+                        <Select.Group>
+                          <Select.Label className="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                            纸张尺寸
+                          </Select.Label>
+                          <Select.Item
+                            value="A4"
+                            className="relative flex items-center px-3 py-2 text-sm text-gray-900 cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none rounded data-[highlighted]:bg-blue-50"
+                          >
+                            <Select.ItemText>A4</Select.ItemText>
+                            <Select.ItemIndicator className="absolute right-3">
+                              <Check className="w-4 h-4 text-blue-600" />
+                            </Select.ItemIndicator>
+                          </Select.Item>
+                          <Select.Item
+                            value="16K"
+                            className="relative flex items-center px-3 py-2 text-sm text-gray-900 cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none rounded data-[highlighted]:bg-blue-50"
+                          >
+                            <Select.ItemText>16K</Select.ItemText>
+                            <Select.ItemIndicator className="absolute right-3">
+                              <Check className="w-4 h-4 text-blue-600" />
+                            </Select.ItemIndicator>
+                          </Select.Item>
+                          <Select.Item
+                            value="Letter"
+                            className="relative flex items-center px-3 py-2 text-sm text-gray-900 cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none rounded data-[highlighted]:bg-blue-50"
+                          >
+                            <Select.ItemText>Letter</Select.ItemText>
+                            <Select.ItemIndicator className="absolute right-3">
+                              <Check className="w-4 h-4 text-blue-600" />
+                            </Select.ItemIndicator>
+                          </Select.Item>
+                          <Select.Item
+                            value="Legal"
+                            className="relative flex items-center px-3 py-2 text-sm text-gray-900 cursor-pointer hover:bg-blue-50 focus:bg-blue-50 focus:outline-none rounded data-[highlighted]:bg-blue-50"
+                          >
+                            <Select.ItemText>Legal</Select.ItemText>
+                            <Select.ItemIndicator className="absolute right-3">
+                              <Check className="w-4 h-4 text-blue-600" />
+                            </Select.ItemIndicator>
+                          </Select.Item>
+                        </Select.Group>
+                      </Select.Viewport>
+                    </Select.Content>
+                  </Select.Portal>
+                </Select.Root>
               </div>
               <button
                 onClick={handleOrientationToggle}

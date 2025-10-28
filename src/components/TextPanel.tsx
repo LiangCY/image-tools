@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { useEditStore } from '../stores';
 import { TextElement } from '../types';
+import { TextRenderer } from '../utils/imageProcessor';
+import * as Select from '@radix-ui/react-select';
 import { 
   Plus, 
   Trash2, 
   Bold,
   Italic,
   Eye,
-  EyeOff
+  EyeOff,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,6 +27,25 @@ const TextPanel: React.FC = () => {
   } = useEditStore();
 
   const [newText, setNewText] = useState('');
+
+  // 颜色选项
+  const colorOptions = [
+    { value: '#000000', label: '黑色', color: '#000000' },
+    { value: '#FFFFFF', label: '白色', color: '#FFFFFF' },
+    { value: '#FF0000', label: '红色', color: '#FF0000' },
+    { value: '#00FF00', label: '绿色', color: '#00FF00' },
+    { value: '#0000FF', label: '蓝色', color: '#0000FF' },
+    { value: '#FFFF00', label: '黄色', color: '#FFFF00' },
+    { value: '#FF00FF', label: '紫红色', color: '#FF00FF' },
+    { value: '#00FFFF', label: '青色', color: '#00FFFF' },
+    { value: '#FFA500', label: '橙色', color: '#FFA500' },
+    { value: '#800080', label: '紫色', color: '#800080' },
+    { value: '#FFC0CB', label: '粉色', color: '#FFC0CB' },
+    { value: '#A52A2A', label: '棕色', color: '#A52A2A' },
+    { value: '#808080', label: '灰色', color: '#808080' },
+    { value: '#000080', label: '深蓝色', color: '#000080' },
+    { value: '#008000', label: '深绿色', color: '#008000' },
+  ];
 
   const hasImages = images.length > 0;
   const selectedText = textElements.find(t => t.id === selectedTextId);
@@ -360,54 +383,104 @@ const TextPanel: React.FC = () => {
                 
                 {/* 颜色下拉选择 */}
                 <div className="flex-1">
-                  <select
+                  <Select.Root
                     value={selectedText.color}
-                    onChange={(e) => updateText({ color: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onValueChange={(value) => updateText({ color: value })}
                   >
-                    <option value="#000000">黑色</option>
-                    <option value="#FFFFFF">白色</option>
-                    <option value="#FF0000">红色</option>
-                    <option value="#00FF00">绿色</option>
-                    <option value="#0000FF">蓝色</option>
-                    <option value="#FFFF00">黄色</option>
-                    <option value="#FF00FF">紫红色</option>
-                    <option value="#00FFFF">青色</option>
-                    <option value="#FFA500">橙色</option>
-                    <option value="#800080">紫色</option>
-                    <option value="#FFC0CB">粉色</option>
-                    <option value="#A52A2A">棕色</option>
-                    <option value="#808080">灰色</option>
-                    <option value="#000080">深蓝色</option>
-                    <option value="#008000">深绿色</option>
-                  </select>
+                    <Select.Trigger className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white flex items-center justify-between hover:border-gray-400 transition-colors">
+                      <div className="flex items-center space-x-2">
+                        <div 
+                          className="w-4 h-4 rounded border border-gray-300"
+                          style={{ backgroundColor: selectedText.color }}
+                        />
+                        <Select.Value>
+                          {colorOptions.find(option => option.value === selectedText.color)?.label || '选择颜色'}
+                        </Select.Value>
+                      </div>
+                      <Select.Icon>
+                        <ChevronDown className="w-4 h-4 text-gray-500" />
+                      </Select.Icon>
+                    </Select.Trigger>
+
+                    <Select.Portal>
+                      <Select.Content className="bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                        <Select.Viewport className="p-1">
+                          {colorOptions.map((option) => (
+                            <Select.Item
+                              key={option.value}
+                              value={option.value}
+                              className="flex items-center space-x-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none rounded data-[highlighted]:bg-gray-100"
+                            >
+                              <div 
+                                className="w-4 h-4 rounded border border-gray-300"
+                                style={{ backgroundColor: option.color }}
+                              />
+                              <Select.ItemText>{option.label}</Select.ItemText>
+                              <Select.ItemIndicator className="ml-auto">
+                                <Check className="w-4 h-4 text-blue-600" />
+                              </Select.ItemIndicator>
+                            </Select.Item>
+                          ))}
+                        </Select.Viewport>
+                      </Select.Content>
+                    </Select.Portal>
+                  </Select.Root>
                 </div>
               </div>
             </div>
 
-            {/* 位置和旋转 */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-2">
-                  X 位置
-                </label>
-                <input
-                  type="number"
-                  value={selectedText.x}
-                  onChange={(e) => updateText({ x: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+            {/* 位置和尺寸 */}
+            <div className="space-y-3">
+              {/* 位置 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">
+                    X 位置
+                  </label>
+                  <input
+                    type="number"
+                    value={Math.round(selectedText.x)}
+                    onChange={(e) => updateText({ x: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">
+                    Y 位置
+                  </label>
+                  <input
+                    type="number"
+                    value={Math.round(selectedText.y)}
+                    onChange={(e) => updateText({ y: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-2">
-                  Y 位置
-                </label>
-                <input
-                  type="number"
-                  value={selectedText.y}
-                  onChange={(e) => updateText({ y: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+              
+              {/* 尺寸 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">
+                    W 宽度
+                  </label>
+                  <input
+                    type="number"
+                    value={Math.round(TextRenderer.measureText(selectedText).width)}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-600 cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">
+                    H 高度
+                  </label>
+                  <input
+                    type="number"
+                    value={Math.round(TextRenderer.measureText(selectedText).height)}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-600 cursor-not-allowed"
+                  />
+                </div>
               </div>
             </div>
 
@@ -428,6 +501,14 @@ const TextPanel: React.FC = () => {
                 <span className="text-xs text-gray-600 w-8">
                   {selectedText.rotation}°
                 </span>
+                <button
+                  onClick={() => updateText({ rotation: 0 })}
+                  className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded border transition-colors"
+                  title="重置为0度"
+                  disabled={selectedText.rotation === 0}
+                >
+                  重置
+                </button>
               </div>
             </div>
 
