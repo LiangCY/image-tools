@@ -2,10 +2,12 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useEditStore, useProcessingStore } from '../stores';
 import { useFileUpload } from '../hooks/useFileUpload';
 import { ImageProcessor, TextRenderer } from '../utils/imageProcessor';
+import { ImageFile } from '../types';
 import SplicePanel from '../components/SplicePanel';
 import CanvasPanel from '../components/CanvasPanel';
 import ExportPanel from '../components/ExportPanel';
 import TextPanel from '../components/TextPanel';
+import { Canvas } from 'fabric';
 
 import {
   Images,
@@ -23,6 +25,7 @@ import { toast } from 'sonner';
 
 const Editor: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fabricCanvasRef = useRef<Canvas | null>(null); // 为了兼容性，虽然这个页面不使用 Fabric.js
   const { handleDrop, handleDragOver, openFileDialog } = useFileUpload();
   const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -37,8 +40,7 @@ const Editor: React.FC = () => {
   const lastUpdateTime = useRef<number>(0);
 
   const {
-    images,
-    selectedImageIds,
+    imageElements,
     activeTool,
     spliceSettings,
     compressionSettings,
@@ -47,35 +49,48 @@ const Editor: React.FC = () => {
     zoom,
     panX,
     panY,
-    selectedTextId,
+    selectedElementId,
+    selectedElementType,
     setActiveTool,
-    selectImage,
-    removeImage,
+    removeImageElement,
     reset,
     setZoom,
     addTextElement,
-    selectTextElement,
     updateTextElement,
     removeTextElement,
-    reorderImages
+    addImageElement
   } = useEditStore();
 
   const { progress } = useProcessingStore();
 
+  // 转换imageElements为ImageFile格式
+  const convertToImageFiles = (elements: typeof imageElements): ImageFile[] => {
+    return elements.map(element => ({
+      id: element.id,
+      file: new File([], 'image'), // 占位符，实际不使用
+      url: element.imageUrl,
+      width: element.width,
+      height: element.height,
+      size: 0, // 占位符
+      name: `image-${element.id}`,
+    }));
+  };
+
   // 渲染预览画布
   useEffect(() => {
     const renderPreview = async () => {
-      if (!canvasRef.current || images.length === 0) return;
+      if (!canvasRef.current || imageElements.length === 0) return;
 
       try {
+        const imageFiles = convertToImageFiles(imageElements);
         const processedCanvas = await ImageProcessor.processImages(
-          images,
-          selectedImageIds,
+          imageFiles,
+          [], // 不使用选中的图片ID，处理所有图片
           spliceSettings,
           compressionSettings,
           textElements,
           iconElements,
-          selectedTextId
+          selectedElementType === 'text' ? selectedElementId : undefined
         );
 
         const canvas = canvasRef.current;
@@ -96,7 +111,7 @@ const Editor: React.FC = () => {
     };
 
     renderPreview();
-  }, [images, selectedImageIds, spliceSettings, compressionSettings, textElements, iconElements, selectedTextId]);
+  }, [imageElements, spliceSettings, compressionSettings, textElements, iconElements, selectedElementId, selectedElementType]);
 
   // 清理动画帧
   useEffect(() => {
@@ -117,10 +132,9 @@ const Editor: React.FC = () => {
       }
 
       // 处理 Backspace 或 Delete 键
-      if ((event.key === 'Backspace' || event.key === 'Delete') && selectedTextId) {
+      if ((event.key === 'Backspace' || event.key === 'Delete') && selectedElementId && selectedElementType === 'text') {
         event.preventDefault();
-        removeTextElement(selectedTextId);
-        selectTextElement(null); // 清除选中状态
+        removeTextElement(selectedElementId);
       }
     };
 
@@ -131,19 +145,14 @@ const Editor: React.FC = () => {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectedTextId, removeTextElement, selectTextElement]);
+  }, [selectedElementId, selectedElementType, removeTextElement]);
 
   const handleToolSelect = (tool: typeof activeTool) => {
     setActiveTool(tool);
   };
 
-  const handleImageSelect = (imageId: string, event: React.MouseEvent) => {
-    const multiSelect = event.ctrlKey || event.metaKey;
-    selectImage(imageId, multiSelect);
-  };
-
   const handleRemoveImage = (imageId: string) => {
-    removeImage(imageId);
+    removeImageElement(imageId);
   };
 
   const handleZoom = (delta: number) => {
@@ -195,8 +204,8 @@ const Editor: React.FC = () => {
     const { x, y } = getCanvasCoordinates(event);
     
     // 首先检查是否点击了选中文字的控制点
-    if (selectedTextId) {
-      const selectedText = textElements.find(t => t.id === selectedTextId);
+    if (selectedElementId && selectedElementType === 'text') {
+      const selectedText = textElements.find(t => t.id === selectedElementId);
       if (selectedText) {
         const controlPoint = TextRenderer.getClickedControlPoint(selectedText, x, y);
         if (controlPoint) {
@@ -224,7 +233,8 @@ const Editor: React.FC = () => {
     if (clickedTextId) {
       // 选中文字元素
       const clickedText = textElements.find(t => t.id === clickedTextId);
-      selectTextElement(clickedTextId);
+      // 选中文字元素 - 使用新的selectElement API
+      // selectElement(clickedTextId, 'text');
       setIsDraggingText(true);
       // 记录屏幕坐标和文字初始位置
       setDragStartScreenPos({ x: event.clientX, y: event.clientY });
@@ -233,18 +243,19 @@ const Editor: React.FC = () => {
       }
     } else {
       // 取消选中
-      selectTextElement(null);
+      // 取消选中 - 使用新的selectElement API
+      // selectElement(null, null);
     }
   };
 
   // 画布鼠标移动处理
   const handleCanvasMouseMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
     // 处理控制点拖拽
-    if (isDraggingControlPoint && selectedTextId && draggedControlPoint && dragStartScreenPos && dragStartFontSize && dragStartTextPos) {
+    if (isDraggingControlPoint && selectedElementId && selectedElementType === 'text' && draggedControlPoint && dragStartScreenPos && dragStartFontSize && dragStartTextPos) {
       const now = performance.now();
       if (now - lastUpdateTime.current < 16) return; // 60fps 限制
       
-      const selectedText = textElements.find(t => t.id === selectedTextId);
+      const selectedText = textElements.find(t => t.id === selectedElementId);
       if (!selectedText) return;
       
       // 计算鼠标移动距离（屏幕坐标）
@@ -407,7 +418,7 @@ const Editor: React.FC = () => {
       const clampedFontSize = Math.max(8, Math.min(200, newFontSize));
       
       // 更新文字元素（包括大小和位置）
-      updateTextElement(selectedTextId, { 
+      updateTextElement(selectedElementId, { 
         fontSize: clampedFontSize,
         x: newX,
         y: newY
@@ -417,7 +428,7 @@ const Editor: React.FC = () => {
     }
     
     // 处理文字拖拽
-    if (!isDraggingText || !selectedTextId || !dragStartScreenPos || !dragStartTextPos || !canvasRef.current) return;
+    if (!isDraggingText || !selectedElementId || selectedElementType !== 'text' || !dragStartScreenPos || !dragStartTextPos || !canvasRef.current) return;
 
     // 时间节流：限制更新频率
     const now = performance.now();
@@ -447,7 +458,7 @@ const Editor: React.FC = () => {
     const clampedY = Math.max(minY, Math.min(maxY, newY));
     
     // 检查位置是否真的发生了变化，避免不必要的更新
-    const currentText = textElements.find(t => t.id === selectedTextId);
+    const currentText = textElements.find(t => t.id === selectedElementId);
     if (currentText && 
         Math.abs(currentText.x - clampedX) < 0.5 && 
         Math.abs(currentText.y - clampedY) < 0.5) {
@@ -458,11 +469,11 @@ const Editor: React.FC = () => {
     lastUpdateTime.current = now;
     
     // 更新文字位置
-    updateTextElement(selectedTextId, {
+    updateTextElement(selectedElementId, {
       x: clampedX,
       y: clampedY
     });
-  }, [isDraggingText, selectedTextId, dragStartScreenPos, dragStartTextPos, updateTextElement, textElements]);
+  }, [isDraggingText, selectedElementId, selectedElementType, dragStartScreenPos, dragStartTextPos, updateTextElement, textElements]);
 
   // 处理鼠标悬停检测（用于改变鼠标样式）
   const handleCanvasMouseHover = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -473,8 +484,8 @@ const Editor: React.FC = () => {
     const { x, y } = getCanvasCoordinates(event);
     
     // 检查是否悬停在选中文字的控制点上
-    if (selectedTextId) {
-      const selectedText = textElements.find(t => t.id === selectedTextId);
+    if (selectedElementId && selectedElementType === 'text') {
+      const selectedText = textElements.find(t => t.id === selectedElementId);
       if (selectedText) {
         const controlPoint = TextRenderer.getClickedControlPoint(selectedText, x, y);
         if (controlPoint) {
@@ -497,7 +508,7 @@ const Editor: React.FC = () => {
     
     // 默认鼠标样式
     setCursorStyle('default');
-  }, [activeTool, selectedTextId, textElements, isDraggingText, isDraggingControlPoint, getCanvasCoordinates]);
+  }, [activeTool, selectedElementId, selectedElementType, textElements, isDraggingText, isDraggingControlPoint, getCanvasCoordinates]);
 
   // 画布鼠标释放处理
   const handleCanvasMouseUp = useCallback(() => {
@@ -538,7 +549,7 @@ const Editor: React.FC = () => {
 
     // 创建图片元素
     const dragImage = document.createElement('img');
-    dragImage.src = images[index].url;
+    dragImage.src = imageElements[index].imageUrl;
     dragImage.style.width = '100%';
     dragImage.style.height = '100%';
     dragImage.style.objectFit = 'cover';
@@ -605,7 +616,8 @@ const Editor: React.FC = () => {
     e.preventDefault();
 
     if (draggedImageIndex !== null && draggedImageIndex !== dropIndex) {
-      reorderImages(draggedImageIndex, dropIndex);
+      // TODO: 实现图片重排序功能
+      // reorderImages(draggedImageIndex, dropIndex);
       toast.success('图片顺序已调整');
     }
 
@@ -648,7 +660,7 @@ const Editor: React.FC = () => {
           </div>
 
           <div className="text-sm text-gray-500 mb-3">
-            {images.length} 张图片
+            {imageElements.length} 张图片
           </div>
 
           <div className="space-y-2">
@@ -670,7 +682,7 @@ const Editor: React.FC = () => {
           onDrop={handleDrop}
           onDragOver={handleDragOver}
         >
-          {images.length === 0 ? (
+          {imageElements.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <Images className="w-12 h-12 mx-auto mb-4 text-gray-300" />
               <p>拖拽图片到这里</p>
@@ -679,12 +691,12 @@ const Editor: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {/* 拖拽提示 */}
-              {images.length > 1 && (
+              {imageElements.length > 1 && (
                 <div className="text-xs text-gray-500 text-center py-2 border-b border-gray-200">
                   💡 拖拽图片可以重新排序
                 </div>
               )}
-              {images.map((image, index) => (
+              {imageElements.map((image, index) => (
                 <React.Fragment key={image.id}>
                   {/* 拖拽插入指示器 */}
                   {dragOverIndex === index && draggedImageIndex !== null && draggedImageIndex !== index && (
@@ -698,18 +710,14 @@ const Editor: React.FC = () => {
                     onDragOver={(e) => handleImageDragOver(e, index)}
                     onDragLeave={handleImageDragLeave}
                     onDrop={(e) => handleImageDrop(e, index)}
-                    className={`relative group border-2 rounded-lg overflow-hidden cursor-move transition-all duration-200 ${selectedImageIds.includes(image.id)
-                      ? 'border-blue-500 ring-2 ring-blue-200'
-                      : 'border-gray-200 hover:border-gray-300'
-                      } ${draggedImageIndex === index
+                    className={`relative group border-2 rounded-lg overflow-hidden cursor-move transition-all duration-200 border-gray-200 hover:border-gray-300 ${draggedImageIndex === index
                         ? 'opacity-50 transform rotate-2 scale-95'
                         : ''
                       }`}
-                    onClick={(e) => handleImageSelect(image.id, e)}
                   >
                     <img
-                      src={image.url}
-                      alt={image.name}
+                      src={image.imageUrl}
+                      alt={`Image ${index + 1}`}
                       className="w-full h-24 object-cover"
                     />
 
@@ -736,7 +744,7 @@ const Editor: React.FC = () => {
                     </button>
 
                     <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2">
-                      <div className="text-xs truncate">{image.name}</div>
+                      <div className="text-xs truncate">图片 {index + 1}</div>
                       <div className="text-xs text-gray-300">
                         {image.width} × {image.height}
                       </div>
@@ -775,7 +783,7 @@ const Editor: React.FC = () => {
 
         {/* 画布预览区域 */}
         <div className="flex-1 relative overflow-hidden bg-gray-100">
-          {images.length > 0 ? (
+          {imageElements.length > 0 ? (
             <div
               className="absolute inset-0 flex items-center justify-center"
               style={{
@@ -810,7 +818,7 @@ const Editor: React.FC = () => {
 
 
           {/* 缩放控制 */}
-          {images.length > 0 && (
+          {imageElements.length > 0 && (
             <div className="absolute bottom-4 right-4 flex items-center space-x-2 bg-white rounded-lg shadow-lg p-2">
               <button
                 onClick={() => handleZoom(-0.1)}
@@ -855,7 +863,7 @@ const Editor: React.FC = () => {
             </div>
           )}
 
-          {activeTool === 'export' && <ExportPanel />}
+          {activeTool === 'export' && <ExportPanel fabricCanvasRef={fabricCanvasRef} />}
         </div>
       </div>
 

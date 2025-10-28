@@ -7,8 +7,7 @@ import {
 
 const SplicePanel: React.FC = () => {
   const { 
-    images, 
-    selectedImageIds, 
+    imageElements, 
     spliceSettings, 
     updateSpliceSettings 
   } = useEditStore();
@@ -23,17 +22,16 @@ const SplicePanel: React.FC = () => {
     updateSpliceSettings({ spacing });
   };
 
-  const selectedImages = images.filter(img => selectedImageIds.includes(img.id));
-  const canSplice = selectedImages.length >= 2;
+  const canSplice = imageElements.length >= 2;
 
   return (
     <div className="space-y-6">
       {/* 选择状态提示 */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
         <p className="text-sm text-blue-800">
-          {selectedImages.length === 0 && '请先选择图片'}
-          {selectedImages.length === 1 && `已选择 1 张图片，需要选择多张图片才能拼接`}
-          {selectedImages.length >= 2 && `已选择 ${selectedImages.length} 张图片，可以进行拼接`}
+          {imageElements.length === 0 && '请先添加图片'}
+          {imageElements.length === 1 && `已添加 1 张图片，需要添加多张图片才能拼接`}
+          {imageElements.length >= 2 && `已添加 ${imageElements.length} 张图片，可以进行拼接`}
         </p>
       </div>
 
@@ -89,7 +87,7 @@ const SplicePanel: React.FC = () => {
       )}
 
       {/* 操作提示 */}
-      {!canSplice && selectedImages.length === 1 && (
+      {!canSplice && imageElements.length === 1 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
           <p className="text-sm text-yellow-800">
             💡 提示：选择多张图片进行拼接，或使用"画布"工具设置单张图片的样式。
@@ -97,7 +95,7 @@ const SplicePanel: React.FC = () => {
         </div>
       )}
 
-      {!canSplice && selectedImages.length === 0 && (
+      {!canSplice && imageElements.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
           <p className="text-sm text-yellow-800">
             💡 提示：在左侧图片列表中选择图片，然后设置拼接参数。

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useEditStore, useProcessingStore, useHistoryStore } from '../stores';
-import { ImageProcessor, ImageExporter } from '../utils/imageProcessor';
+import { ImageExporter } from '../utils/imageProcessor';
 import { ExportSettings } from '../types';
 import { 
   Download, 
@@ -9,8 +9,13 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Canvas } from 'fabric';
 
-const ExportPanel: React.FC = () => {
+interface ExportPanelProps {
+  fabricCanvasRef: React.RefObject<Canvas | null>;
+}
+
+const ExportPanel: React.FC<ExportPanelProps> = ({ fabricCanvasRef }) => {
   const [exportSettings, setExportSettings] = useState<ExportSettings>({
     format: 'png',
     quality: 90,
@@ -25,93 +30,56 @@ const ExportPanel: React.FC = () => {
   } | null>(null);
 
   const { 
-    images, 
-    selectedImageIds, 
-    spliceSettings, 
-    compressionSettings, 
-    textElements, 
-    iconElements 
+    canvasSettings
   } = useEditStore();
   
   const { startProcessing, updateProgress, finishProcessing } = useProcessingStore();
   const { addRecord } = useHistoryStore();
 
-  // 计算当前处理的图片信息
-  React.useEffect(() => {
-    const calculatePreviewInfo = async () => {
-      if (images.length === 0) {
-        setPreviewInfo(null);
-        return;
-      }
-
-      try {
-        const processedCanvas = await ImageProcessor.processImages(
-          images,
-          selectedImageIds,
-          spliceSettings,
-          compressionSettings,
-          textElements,
-          iconElements
-        );
-
-        // 应用导出设置中的尺寸调整
-        let finalWidth = processedCanvas.width;
-        let finalHeight = processedCanvas.height;
-
-        if (exportSettings.width || exportSettings.height) {
-          const aspectRatio = processedCanvas.width / processedCanvas.height;
-          
-          if (exportSettings.width && exportSettings.height) {
-            finalWidth = exportSettings.width;
-            finalHeight = exportSettings.height;
-          } else if (exportSettings.width) {
-            finalWidth = exportSettings.width;
-            finalHeight = exportSettings.width / aspectRatio;
-          } else if (exportSettings.height) {
-            finalHeight = exportSettings.height;
-            finalWidth = exportSettings.height * aspectRatio;
-          }
-        }
-
-        // 估算文件大小
-        const pixels = finalWidth * finalHeight;
-        let estimatedBytes: number;
-        
-        switch (exportSettings.format) {
-          case 'jpeg':
-            estimatedBytes = pixels * 3 * (exportSettings.quality / 100);
-            break;
-          case 'png':
-            estimatedBytes = pixels * 4;
-            break;
-          case 'webp':
-            estimatedBytes = pixels * 2.5 * (exportSettings.quality / 100);
-            break;
-          default:
-            estimatedBytes = pixels * 3;
-        }
-
-        const estimatedSize = formatFileSize(estimatedBytes);
-
-        setPreviewInfo({
-          width: Math.round(finalWidth),
-          height: Math.round(finalHeight),
-          estimatedSize
-        });
-      } catch (error) {
-        console.error('Failed to calculate preview info:', error);
-        setPreviewInfo(null);
-      }
-    };
-
-    calculatePreviewInfo();
-  }, [images, selectedImageIds, spliceSettings, compressionSettings, textElements, iconElements, exportSettings]);
-
-  const formatFileSize = (bytes: number): string => {
+  const formatFileSize = useCallback((bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
+  }, []);
+
+  // 获取画布预览信息
+  const getCanvasPreviewInfo = useCallback(() => {
+    if (!fabricCanvasRef.current) return null;
+    
+    const canvas = fabricCanvasRef.current;
+    const width = canvas.getWidth();
+    const height = canvas.getHeight();
+    
+    // 估算文件大小
+    const pixels = width * height;
+    let estimatedBytes: number;
+    
+    switch (exportSettings.format) {
+      case 'jpeg':
+        estimatedBytes = pixels * 3 * (exportSettings.quality / 100);
+        break;
+      case 'png':
+        estimatedBytes = pixels * 4;
+        break;
+      case 'webp':
+        estimatedBytes = pixels * 3 * (exportSettings.quality / 100) * 0.8;
+        break;
+      default:
+        estimatedBytes = pixels * 3;
+    }
+    
+    return {
+      width,
+      height,
+      estimatedSize: formatFileSize(estimatedBytes)
+    };
+  }, [fabricCanvasRef, exportSettings.format, exportSettings.quality, formatFileSize]);
+
+  // 计算当前画布的预览信息
+  React.useEffect(() => {
+    const info = getCanvasPreviewInfo();
+    setPreviewInfo(info);
+  }, [exportSettings, canvasSettings, getCanvasPreviewInfo]);
 
   const handleFormatChange = (format: ExportSettings['format']) => {
     setExportSettings(prev => ({ ...prev, format }));
@@ -121,68 +89,52 @@ const ExportPanel: React.FC = () => {
     setExportSettings(prev => ({ ...prev, quality }));
   };
 
-  const handleSizeChange = (width?: number, height?: number) => {
-    setExportSettings(prev => ({ ...prev, width, height }));
-  };
+
 
   const handleMetadataToggle = () => {
     setExportSettings(prev => ({ ...prev, includeMetadata: !prev.includeMetadata }));
   };
 
   const handleExport = async () => {
-    if (images.length === 0) {
-      toast.error('没有图片可以导出');
+    if (!fabricCanvasRef.current) {
+      toast.error('画布未初始化');
       return;
     }
 
+    const fabricCanvas = fabricCanvasRef.current;
+    
     setIsExporting(true);
-    startProcessing('正在处理图片...');
+    startProcessing('正在导出画布...');
 
     try {
-      updateProgress(20, '生成最终图片...');
+      updateProgress(30, '生成画布图片...');
 
-      // 生成最终的处理图片
-      const processedCanvas = await ImageProcessor.processImages(
-        images,
-        selectedImageIds,
-        spliceSettings,
-        compressionSettings,
-        textElements,
-        iconElements
-      );
+      // 直接从 Fabric.js 画布导出
+      const dataURL = fabricCanvas.toDataURL({
+        format: exportSettings.format,
+        quality: exportSettings.quality / 100,
+        multiplier: 1 // 使用原始尺寸
+      });
 
-      updateProgress(50, '应用导出设置...');
+      updateProgress(70, '准备下载文件...');
 
-      // 如果需要调整尺寸，创建新的画布
-      let finalCanvas = processedCanvas;
-      if (exportSettings.width || exportSettings.height) {
-        finalCanvas = document.createElement('canvas');
-        const aspectRatio = processedCanvas.width / processedCanvas.height;
-        
-        if (exportSettings.width && exportSettings.height) {
-          finalCanvas.width = exportSettings.width;
-          finalCanvas.height = exportSettings.height;
-        } else if (exportSettings.width) {
-          finalCanvas.width = exportSettings.width;
-          finalCanvas.height = exportSettings.width / aspectRatio;
-        } else if (exportSettings.height) {
-          finalCanvas.height = exportSettings.height;
-          finalCanvas.width = exportSettings.height * aspectRatio;
-        }
-
-        const ctx = finalCanvas.getContext('2d')!;
-        ctx.drawImage(processedCanvas, 0, 0, finalCanvas.width, finalCanvas.height);
-      }
-
-      updateProgress(80, '生成下载文件...');
+      // 将 dataURL 转换为 blob
+      const response = await fetch(dataURL);
+      const blob = await response.blob();
 
       // 生成文件名
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
-      const selectedCount = selectedImageIds.length || images.length;
-      const filename = `image-tool-${selectedCount}pics-${timestamp}`;
+      const filename = `canvas-export-${timestamp}.${exportSettings.format}`;
 
-      // 导出图片
-      await ImageExporter.downloadImage(finalCanvas, filename, exportSettings);
+      // 下载文件
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
       updateProgress(100, '导出完成！');
 
@@ -191,18 +143,22 @@ const ExportPanel: React.FC = () => {
       thumbnailCanvas.width = 200;
       thumbnailCanvas.height = 150;
       const thumbnailCtx = thumbnailCanvas.getContext('2d')!;
-      thumbnailCtx.drawImage(finalCanvas, 0, 0, 200, 150);
-      const thumbnail = thumbnailCanvas.toDataURL('image/jpeg', 0.7);
+      
+      // 从 dataURL 创建图片来生成缩略图
+      const img = new Image();
+      img.onload = () => {
+        thumbnailCtx.drawImage(img, 0, 0, 200, 150);
+        const thumbnail = thumbnailCanvas.toDataURL('image/jpeg', 0.7);
+        
+        addRecord({
+          thumbnail,
+          operation: `导出画布 (${exportSettings.format.toUpperCase()})`,
+          images: [] // 画布导出不需要原始图片信息
+        });
+      };
+      img.src = dataURL;
 
-      addRecord({
-        thumbnail,
-        operation: `导出${selectedCount}张图片 (${exportSettings.format.toUpperCase()})`,
-        images: selectedImageIds.length > 0 
-          ? images.filter(img => selectedImageIds.includes(img.id))
-          : images
-      });
-
-      toast.success('图片导出成功！');
+      toast.success('画布导出成功！');
       finishProcessing();
     } catch (error) {
       console.error('Export failed:', error);
@@ -213,11 +169,7 @@ const ExportPanel: React.FC = () => {
     }
   };
 
-  const selectedImages = selectedImageIds.length > 0 
-    ? images.filter(img => selectedImageIds.includes(img.id))
-    : images;
-
-  const canExport = selectedImages.length > 0;
+  const canExport = fabricCanvasRef.current !== null;
 
   return (
     <div className="space-y-6">
@@ -237,8 +189,8 @@ const ExportPanel: React.FC = () => {
             canExport ? 'text-green-800' : 'text-yellow-800'
           }`}>
             {canExport 
-              ? `准备导出 ${selectedImages.length} 张图片`
-              : '请先添加图片或选择要导出的图片'
+              ? '准备导出画布内容'
+              : '画布未准备就绪'
             }
           </p>
         </div>
@@ -312,43 +264,7 @@ const ExportPanel: React.FC = () => {
         </div>
       )}
 
-      {/* 尺寸设置 */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-3">
-          输出尺寸 (可选)
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">宽度 (px)</label>
-            <input
-              type="number"
-              placeholder="自动"
-              value={exportSettings.width || ''}
-              onChange={(e) => handleSizeChange(
-                e.target.value ? Number(e.target.value) : undefined,
-                exportSettings.height
-              )}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">高度 (px)</label>
-            <input
-              type="number"
-              placeholder="自动"
-              value={exportSettings.height || ''}
-              onChange={(e) => handleSizeChange(
-                exportSettings.width,
-                e.target.value ? Number(e.target.value) : undefined
-              )}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-        </div>
-        <p className="text-xs text-gray-500 mt-2">
-          留空则使用原始尺寸。只设置一个值时会保持宽高比。
-        </p>
-      </div>
+
 
       {/* 元数据设置 */}
       <div>
@@ -366,55 +282,7 @@ const ExportPanel: React.FC = () => {
         </label>
       </div>
 
-      {/* 预设选项 */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-3">
-          快速设置
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => setExportSettings({
-              format: 'png',
-              quality: 100,
-              includeMetadata: false
-            })}
-            className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-          >
-            🎨 设计用途
-          </button>
-          <button
-            onClick={() => setExportSettings({
-              format: 'jpeg',
-              quality: 80,
-              includeMetadata: false
-            })}
-            className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-          >
-            📱 网络分享
-          </button>
-          <button
-            onClick={() => setExportSettings({
-              format: 'jpeg',
-              quality: 95,
-              width: 1920,
-              includeMetadata: true
-            })}
-            className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-          >
-            🖼️ 高质量打印
-          </button>
-          <button
-            onClick={() => setExportSettings({
-              format: 'webp',
-              quality: 85,
-              includeMetadata: false
-            })}
-            className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-          >
-            🚀 现代浏览器
-          </button>
-        </div>
-      </div>
+
 
       {/* 导出按钮 */}
       <div className="pt-4 border-t border-gray-200">
@@ -429,13 +297,13 @@ const ExportPanel: React.FC = () => {
         >
           <Download className="w-5 h-5" />
           <span>
-            {isExporting ? '导出中...' : '导出图片'}
+            {isExporting ? '导出中...' : '导出画布'}
           </span>
         </button>
         
         {canExport && (
           <p className="text-xs text-gray-500 text-center mt-2">
-            点击导出后图片将自动下载到您的设备
+            点击导出后画布将自动下载到您的设备
           </p>
         )}
       </div>

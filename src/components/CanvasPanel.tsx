@@ -24,8 +24,7 @@ import {
 
 const CanvasPanel: React.FC = () => {
   const { 
-    images, 
-    selectedImageIds, 
+    imageElements, 
     spliceSettings, 
     updateSpliceSettings 
   } = useEditStore();
@@ -154,8 +153,7 @@ const CanvasPanel: React.FC = () => {
     });
   };
 
-  const selectedImages = images.filter(img => selectedImageIds.includes(img.id));
-  const hasSelectedImages = selectedImages.length >= 1;
+  const hasImages = imageElements.length >= 1;
 
   // 生成预设选项
   const baseRatios = [
@@ -171,9 +169,9 @@ const CanvasPanel: React.FC = () => {
       {/* 选择状态提示 */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
         <p className="text-sm text-blue-800">
-          {selectedImages.length === 0 && '请先选择图片'}
-          {selectedImages.length === 1 && `已选择 1 张图片，可以设置画布样式`}
-          {selectedImages.length >= 2 && `已选择 ${selectedImages.length} 张图片，可以设置画布样式`}
+          {imageElements.length === 0 && '请先添加图片'}
+          {imageElements.length === 1 && `已添加 1 张图片，可以设置画布样式`}
+          {imageElements.length >= 2 && `已添加 ${imageElements.length} 张图片，可以设置画布样式`}
         </p>
       </div>
 
@@ -621,7 +619,7 @@ const CanvasPanel: React.FC = () => {
       </div>
 
       {/* 操作提示 */}
-      {!hasSelectedImages && (
+      {!hasImages && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
           <p className="text-sm text-yellow-800">
             💡 提示：在左侧图片列表中选择图片，然后调整画布设置，预览区域会实时显示效果。
@@ -629,7 +627,7 @@ const CanvasPanel: React.FC = () => {
         </div>
       )}
 
-      {hasSelectedImages && selectedImages.length === 1 && (
+      {hasImages && imageElements.length === 1 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <p className="text-sm text-blue-800">
             🎨 单张图片模式：可以设置画布比例、背景色、边距等样式效果。
@@ -637,7 +635,7 @@ const CanvasPanel: React.FC = () => {
         </div>
       )}
 
-      {hasSelectedImages && selectedImages.length >= 2 && (
+      {hasImages && imageElements.length >= 2 && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-3">
           <p className="text-sm text-green-800">
             ✅ 多张图片模式：可以设置画布样式，配合拼接工具使用效果更佳。

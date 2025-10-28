@@ -6,9 +6,10 @@ import { ZoomIn, ZoomOut, RotateCcw, Maximize } from 'lucide-react';
 
 interface FabricCanvasProps {
   // 不再需要外部传入尺寸，从 store 获取
+  onCanvasReady?: (canvas: Canvas) => void;
 }
 
-const FabricCanvas: React.FC<FabricCanvasProps> = () => {
+const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<Canvas | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -140,7 +141,10 @@ const FabricCanvas: React.FC<FabricCanvasProps> = () => {
 
     fabricCanvasRef.current = canvas;
 
-
+    // 通知父组件画布已准备就绪
+    if (onCanvasReady) {
+      onCanvasReady(canvas);
+    }
 
     // 禁用滚轮缩放，防止意外操作
     canvas.on('mouse:wheel', (opt) => {

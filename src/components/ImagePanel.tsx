@@ -45,7 +45,6 @@ const ImagePanel: React.FC = () => {
       for (const file of imageFiles) {
         await addImageElement(file);
       }
-      toast.success(`已添加 ${imageFiles.length} 张图片`);
     } catch (error) {
       toast.error('添加图片失败');
     }
@@ -77,7 +76,6 @@ const ImagePanel: React.FC = () => {
   // 删除图片
   const handleRemoveImage = (id: string) => {
     removeImageElement(id);
-    toast.success('图片已删除');
   };
 
   // 更新图片属性

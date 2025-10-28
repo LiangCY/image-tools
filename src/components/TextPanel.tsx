@@ -94,7 +94,6 @@ const TextPanel: React.FC = () => {
 
     addTextElement(newTextElement);
     setNewText('');
-    toast.success('文字已添加');
   };
 
   // 快速添加预设文字
@@ -144,13 +143,11 @@ const TextPanel: React.FC = () => {
         selectElement(newElement.id, 'text');
       }
     }, 100);
-    toast.success(`${text}已添加`);
   };
 
   // 删除文字
   const handleRemoveText = (id: string) => {
     removeTextElement(id);
-    toast.success('文字已删除');
   };
 
   // 更新文字属性

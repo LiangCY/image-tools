@@ -11,16 +11,12 @@ export const runDemo = async () => {
     
     // 2. 加载测试图片
     const testImages = await createTestImages();
-    await store.addImages(testImages);
+    for (const file of testImages) {
+      await store.addImageElement(file);
+    }
     
     // 等待图片加载
     await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // 3. 选择所有图片
-    const currentImages = useEditStore.getState().images;
-    currentImages.forEach((img, index) => {
-      store.selectImage(img.id, index > 0);
-    });
     
     // 4. 设置拼接参数
     store.updateSpliceSettings({

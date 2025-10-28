@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { useEditStore, useProcessingStore } from '../stores';
 import CanvasSettingsPanel from './CanvasSettingsPanel';
 import ImagePanel from './ImagePanel';
 import ExportPanel from './ExportPanel';
 import TextPanel from './TextPanel';
 import FabricCanvas from './FabricCanvas';
+import { Canvas } from 'fabric';
 
 import {
   Image as ImageIcon,
@@ -22,6 +23,11 @@ const FabricEditor: React.FC = () => {
   } = useEditStore();
 
   const { progress } = useProcessingStore();
+  const fabricCanvasRef = useRef<Canvas | null>(null);
+
+  const handleCanvasReady = (canvas: Canvas) => {
+    fabricCanvasRef.current = canvas;
+  };
 
   // 工具面板配置
   const tools = [
@@ -31,7 +37,17 @@ const FabricEditor: React.FC = () => {
     { id: 'export' as const, icon: Download, label: '导出', component: ExportPanel },
   ];
 
-  const ActiveToolComponent = tools.find(tool => tool.id === activeTool)?.component || CanvasSettingsPanel;
+  const renderActiveToolComponent = () => {
+    const tool = tools.find(tool => tool.id === activeTool);
+    if (!tool) return <CanvasSettingsPanel />;
+    
+    if (tool.id === 'export') {
+      return <ExportPanel fabricCanvasRef={fabricCanvasRef} />;
+    }
+    
+    const Component = tool.component;
+    return <Component />;
+  };
 
   return (
     <div className="h-screen flex bg-gray-50">
@@ -63,7 +79,7 @@ const FabricEditor: React.FC = () => {
         {/* 画布区域 */}
         <div className="flex-1 bg-gray-200 p-6" style={{ minHeight: 0 }}>
           <div className="h-full w-full">
-            <FabricCanvas />
+            <FabricCanvas onCanvasReady={handleCanvasReady} />
           </div>
         </div>
 
@@ -100,7 +116,7 @@ const FabricEditor: React.FC = () => {
         {/* 配置内容 */}
         <div className="flex-1 overflow-y-auto">
           <div className="p-4">
-            <ActiveToolComponent />
+            {renderActiveToolComponent()}
           </div>
         </div>
       </div>

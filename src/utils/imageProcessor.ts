@@ -389,7 +389,7 @@ export class TextRenderer {
       // 计算文字的几何中心点
       const { width, height } = this.measureText(element);
       let centerX = element.x;
-      let centerY = element.y - height / 2;
+      const centerY = element.y - height / 2;
       
       // 根据对齐方式调整中心点的 x 坐标
       switch (element.textAlign) {
@@ -466,7 +466,7 @@ export class TextRenderer {
       
       // 计算几何中心
       let centerX = element.x;
-      let centerY = element.y - textHeight / 2;
+      const centerY = element.y - textHeight / 2;
       
       switch (element.textAlign) {
         case 'center':
@@ -586,7 +586,7 @@ export class TextRenderer {
       // 旋转文字的控制点计算
       const { width: textWidth, height: textHeight } = this.measureText(element);
       let centerX = element.x;
-      let centerY = element.y - textHeight / 2;
+      const centerY = element.y - textHeight / 2;
       
       switch (element.textAlign) {
         case 'center':
@@ -752,7 +752,7 @@ export class TextRenderer {
       // 计算文字的几何中心点（与渲染时保持一致）
       const { width, height } = this.measureText(element);
       let centerX = element.x;
-      let centerY = element.y - height / 2;
+      const centerY = element.y - height / 2;
       
       // 根据对齐方式调整中心点的 x 坐标
       switch (element.textAlign) {

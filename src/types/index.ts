@@ -115,7 +115,7 @@ export interface ExportSettings {
 }
 
 // 编辑工具类型
-export type EditTool = 'canvas' | 'image' | 'text' | 'icon' | 'export';
+export type EditTool = 'canvas' | 'image' | 'text' | 'icon' | 'export' | 'splice';
 
 // 画布设置类型
 export interface CanvasSettings {
