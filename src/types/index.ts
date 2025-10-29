@@ -77,6 +77,8 @@ export interface TextElement {
   textAlign: 'left' | 'center' | 'right';
   rotation: number;
   opacity: number;
+  scaleX: number;
+  scaleY: number;
   zIndex: number;
   visible: boolean;
   locked: boolean;

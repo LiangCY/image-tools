@@ -200,7 +200,7 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
       if (zoom > 5) zoom = 5;
       if (zoom < 0.1) zoom = 0.1;
       
-      canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+      canvas.zoomToPoint(new Point(opt.e.offsetX, opt.e.offsetY), zoom);
       setZoom(zoom);
       setDisplayZoom(zoom);
       
@@ -221,9 +221,9 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
         canvas.selection = false;
         canvas.defaultCursor = 'grab';
         canvas.hoverCursor = 'grab';
-        canvas.isDragging = true;
-        canvas.lastPosX = evt.clientX;
-        canvas.lastPosY = evt.clientY;
+        (canvas as any).isDragging = true;
+        (canvas as any).lastPosX = (evt as any).clientX;
+        (canvas as any).lastPosY = (evt as any).clientY;
         opt.e.preventDefault();
         opt.e.stopPropagation();
       }
@@ -233,15 +233,15 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
       if (canvas.isDrawingMode) {
         // 在绘画模式下不阻止事件传播
         return;
-      } else if (isPanning && canvas.isDragging) {
+      } else if (isPanning && (canvas as any).isDragging) {
         const evt = opt.e;
         const vpt = canvas.viewportTransform;
         if (vpt) {
-          vpt[4] += evt.clientX - canvas.lastPosX;
-          vpt[5] += evt.clientY - canvas.lastPosY;
+          vpt[4] += (evt as any).clientX - (canvas as any).lastPosX;
+          vpt[5] += (evt as any).clientY - (canvas as any).lastPosY;
           canvas.requestRenderAll();
-          canvas.lastPosX = evt.clientX;
-          canvas.lastPosY = evt.clientY;
+          (canvas as any).lastPosX = (evt as any).clientX;
+          (canvas as any).lastPosY = (evt as any).clientY;
         }
         opt.e.preventDefault();
         opt.e.stopPropagation();
@@ -257,7 +257,7 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
         canvas.selection = true;
         canvas.defaultCursor = 'default';
         canvas.hoverCursor = 'move';
-        canvas.isDragging = false;
+        (canvas as any).isDragging = false;
       }
     });
 
@@ -483,7 +483,8 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     const updates: Partial<TextElement> = {
       x: obj.left || 0,
       y: obj.top || 0,
-      fontSize: (obj.fontSize || 20) * (obj.scaleY || 1),
+      scaleX: obj.scaleX || 1,
+      scaleY: obj.scaleY || 1,
       rotation: obj.angle || 0,
       opacity: obj.opacity || 1,
     };
@@ -520,6 +521,8 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
       textAlign: textElement.textAlign,
       angle: textElement.rotation,
       opacity: textElement.opacity,
+      scaleX: textElement.scaleX,
+      scaleY: textElement.scaleY,
       visible: textElement.visible,
       selectable: !textElement.locked,
       evented: !textElement.locked,
@@ -701,6 +704,8 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
             textAlign: textElement.textAlign,
             angle: textElement.rotation,
             opacity: textElement.opacity,
+            scaleX: textElement.scaleX,
+            scaleY: textElement.scaleY,
             visible: textElement.visible,
             selectable: !textElement.locked,
             evented: !textElement.locked,

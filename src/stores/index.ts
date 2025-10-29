@@ -331,6 +331,8 @@ export const useEditStore = create<EditStore>((set, get) => ({
         zIndex: element.zIndex || nextZIndex,
         visible: element.visible !== undefined ? element.visible : true,
         locked: element.locked !== undefined ? element.locked : false,
+        scaleX: element.scaleX !== undefined ? element.scaleX : 1,
+        scaleY: element.scaleY !== undefined ? element.scaleY : 1,
       };
       
       return {

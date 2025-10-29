@@ -90,6 +90,8 @@ const TextPanel: React.FC = () => {
       textAlign: 'left',
       rotation: 0,
       opacity: 1,
+      scaleX: 1,
+      scaleY: 1,
       zIndex: 0, // 将在addTextElement中自动分配正确的zIndex
       visible: true,
       locked: false
@@ -136,6 +138,8 @@ const TextPanel: React.FC = () => {
       textAlign: 'left',
       rotation: 0,
       opacity,
+      scaleX: 1,
+      scaleY: 1,
       zIndex: 0, // 将在addTextElement中自动分配正确的zIndex
       visible: true,
       locked: false
