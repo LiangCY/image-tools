@@ -58,7 +58,8 @@ const Editor: React.FC = () => {
     addTextElement,
     updateTextElement,
     removeTextElement,
-    addImageElement
+    addImageElement,
+    selectElement
   } = useEditStore();
 
   const { progress } = useProcessingStore();
@@ -147,6 +148,17 @@ const Editor: React.FC = () => {
     };
   }, [selectedElementId, selectedElementType, removeTextElement]);
 
+  // 自动切换工具面板
+  useEffect(() => {
+    if (selectedElementId && selectedElementType) {
+      if (selectedElementType === 'image') {
+        setActiveTool('splice');
+      } else if (selectedElementType === 'text') {
+        setActiveTool('text');
+      }
+    }
+  }, [selectedElementId, selectedElementType, setActiveTool]);
+
   const handleToolSelect = (tool: typeof activeTool) => {
     setActiveTool(tool);
   };
@@ -199,12 +211,12 @@ const Editor: React.FC = () => {
 
   // 画布鼠标按下处理
   const handleCanvasMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (activeTool !== 'text' || !canvasRef.current) return;
+    if (!canvasRef.current) return;
 
     const { x, y } = getCanvasCoordinates(event);
     
-    // 首先检查是否点击了选中文字的控制点
-    if (selectedElementId && selectedElementType === 'text') {
+    // 首先检查是否点击了选中文字的控制点（只在文字工具激活时）
+    if (activeTool === 'text' && selectedElementId && selectedElementType === 'text') {
       const selectedText = textElements.find(t => t.id === selectedElementId);
       if (selectedText) {
         const controlPoint = TextRenderer.getClickedControlPoint(selectedText, x, y);
@@ -234,17 +246,21 @@ const Editor: React.FC = () => {
       // 选中文字元素
       const clickedText = textElements.find(t => t.id === clickedTextId);
       // 选中文字元素 - 使用新的selectElement API
-      // selectElement(clickedTextId, 'text');
-      setIsDraggingText(true);
-      // 记录屏幕坐标和文字初始位置
-      setDragStartScreenPos({ x: event.clientX, y: event.clientY });
-      if (clickedText) {
-        setDragStartTextPos({ x: clickedText.x, y: clickedText.y });
+      selectElement(clickedTextId, 'text');
+      
+      // 只有在文字工具激活时才允许拖拽
+      if (activeTool === 'text') {
+        setIsDraggingText(true);
+        // 记录屏幕坐标和文字初始位置
+        setDragStartScreenPos({ x: event.clientX, y: event.clientY });
+        if (clickedText) {
+          setDragStartTextPos({ x: clickedText.x, y: clickedText.y });
+        }
       }
     } else {
       // 取消选中
       // 取消选中 - 使用新的selectElement API
-      // selectElement(null, null);
+      selectElement(null, null);
     }
   };
 
@@ -710,7 +726,12 @@ const Editor: React.FC = () => {
                     onDragOver={(e) => handleImageDragOver(e, index)}
                     onDragLeave={handleImageDragLeave}
                     onDrop={(e) => handleImageDrop(e, index)}
-                    className={`relative group border-2 rounded-lg overflow-hidden cursor-move transition-all duration-200 border-gray-200 hover:border-gray-300 ${draggedImageIndex === index
+                    onClick={() => selectElement(image.id, 'image')}
+                    className={`relative group border-2 rounded-lg overflow-hidden cursor-pointer transition-all duration-200 ${
+                      selectedElementId === image.id && selectedElementType === 'image'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    } ${draggedImageIndex === index
                         ? 'opacity-50 transform rotate-2 scale-95'
                         : ''
                       }`}
@@ -778,6 +799,19 @@ const Editor: React.FC = () => {
                 </button>
               );
             })}
+            
+            {/* 临时测试按钮 */}
+            {textElements.length > 0 && (
+              <button
+                onClick={() => {
+                  console.log('Test button clicked, selecting first text element');
+                  selectElement(textElements[0].id, 'text');
+                }}
+                className="ml-4 px-3 py-1 bg-red-500 text-white text-xs rounded"
+              >
+                测试选中文字
+              </button>
+            )}
           </div>
         </div>
 

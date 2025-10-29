@@ -77,6 +77,9 @@ export interface TextElement {
   textAlign: 'left' | 'center' | 'right';
   rotation: number;
   opacity: number;
+  zIndex: number;
+  visible: boolean;
+  locked: boolean;
 }
 
 // 图片元素类型
@@ -91,6 +94,9 @@ export interface ImageElement {
   opacity: number;
   scaleX: number;
   scaleY: number;
+  zIndex: number;
+  visible: boolean;
+  locked: boolean;
 }
 
 // 图标元素类型
@@ -103,6 +109,9 @@ export interface IconElement {
   color: string;
   rotation: number;
   opacity: number;
+  zIndex: number;
+  visible: boolean;
+  locked: boolean;
 }
 
 // 导出设置类型
@@ -123,6 +132,8 @@ export interface CanvasSettings {
   height: number;
   backgroundColor: string;
   backgroundImage?: string;
+  maxWidth?: number;
+  maxHeight?: number;
 }
 
 // 编辑状态类型
@@ -148,6 +159,9 @@ export interface EditState {
   // 旧的设置（保留兼容性）
   spliceSettings: SpliceSettings;
   compressionSettings: CompressionSettings;
+  
+  // 强制渲染标记
+  _forceRender?: number;
 }
 
 // 处理进度类型
@@ -165,3 +179,14 @@ export interface HistoryRecord {
   operation: string;
   images: ImageFile[];
 }
+
+// 层级元素类型
+export interface LayerElement {
+  id: string;
+  type: 'image' | 'text' | 'icon';
+  name: string;
+  zIndex: number;
+}
+
+// 层级操作类型
+export type LayerOperation = 'moveUp' | 'moveDown' | 'moveToTop' | 'moveToBottom';

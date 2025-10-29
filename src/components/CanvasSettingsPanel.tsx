@@ -100,7 +100,7 @@ const CanvasSettingsPanel: React.FC = () => {
         
         {/* 预设颜色 */}
         <div className="flex space-x-2 mt-3">
-          {['#ffffff', '#f3f4f6', '#000000', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'].map((color) => (
+          {['#ffffff', '#e2e8f0', '#dbeafe', '#bfdbfe', '#d1fae5', '#fef3c7', '#fecaca', '#e9d5ff'].map((color) => (
             <button
               key={color}
               onClick={() => handleBackgroundColorChange(color)}

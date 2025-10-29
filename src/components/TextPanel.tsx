@@ -89,7 +89,10 @@ const TextPanel: React.FC = () => {
       fontStyle: 'normal',
       textAlign: 'left',
       rotation: 0,
-      opacity: 1
+      opacity: 1,
+      zIndex: 0, // 将在addTextElement中自动分配正确的zIndex
+      visible: true,
+      locked: false
     };
 
     addTextElement(newTextElement);
@@ -132,7 +135,10 @@ const TextPanel: React.FC = () => {
       fontStyle: 'normal',
       textAlign: 'left',
       rotation: 0,
-      opacity
+      opacity,
+      zIndex: 0, // 将在addTextElement中自动分配正确的zIndex
+      visible: true,
+      locked: false
     };
 
     addTextElement(newTextElement);

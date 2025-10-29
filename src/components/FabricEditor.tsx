@@ -4,6 +4,7 @@ import CanvasSettingsPanel from './CanvasSettingsPanel';
 import ImagePanel from './ImagePanel';
 import ExportPanel from './ExportPanel';
 import TextPanel from './TextPanel';
+import LayersPanel from './LayersPanel';
 import FabricCanvas from './FabricCanvas';
 import { Canvas } from 'fabric';
 
@@ -11,7 +12,8 @@ import {
   Image as ImageIcon,
   Settings,
   Type,
-  Download
+  Download,
+  Layers
 } from 'lucide-react';
 
 const FabricEditor: React.FC = () => {
@@ -51,6 +53,24 @@ const FabricEditor: React.FC = () => {
 
   return (
     <div className="h-screen flex bg-gray-50">
+      {/* 左侧图层面板 */}
+      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+        {/* 图层面板标题 */}
+        <div className="p-4 border-b border-gray-200">
+          <h2 className="text-sm font-medium text-gray-900 flex items-center">
+            <Layers className="w-4 h-4 mr-2" />
+            图层
+          </h2>
+        </div>
+
+        {/* 图层面板内容 */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4">
+            <LayersPanel />
+          </div>
+        </div>
+      </div>
+
       {/* 主编辑区域 */}
       <div className="flex-1 flex flex-col">
         {/* 顶部工具栏 */}
@@ -62,9 +82,9 @@ const FabricEditor: React.FC = () => {
                 <button
                   key={tool.id}
                   onClick={() => setActiveTool(tool.id)}
-                  className={`flex flex-col items-center space-y-1 px-4 py-3 rounded-lg transition-all ${activeTool === tool.id
-                      ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                      : 'text-gray-600 hover:bg-gray-100'
+                  className={`flex flex-col items-center space-y-1 px-4 py-3 rounded-lg transition-all border ${activeTool === tool.id
+                      ? 'bg-blue-100 text-blue-700 border-blue-200'
+                      : 'text-gray-600 hover:bg-gray-100 border-transparent'
                     }`}
                   title={tool.label}
                 >

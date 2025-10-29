@@ -167,9 +167,28 @@ export class ImageSplicer {
       };
     }
     
+    // 应用最大尺寸限制
+    const maxCanvasWidth = 4000; // 最大画布宽度
+    const maxCanvasHeight = 4000; // 最大画布高度
+    
+    let finalWidth = naturalWidth + paddingHorizontal;
+    let finalHeight = naturalHeight + paddingVertical;
+    
+    // 如果超出最大尺寸，按比例缩放
+    if (finalWidth > maxCanvasWidth || finalHeight > maxCanvasHeight) {
+      const scaleX = maxCanvasWidth / finalWidth;
+      const scaleY = maxCanvasHeight / finalHeight;
+      const scale = Math.min(scaleX, scaleY);
+      
+      finalWidth = Math.round(finalWidth * scale);
+      finalHeight = Math.round(finalHeight * scale);
+      
+      console.log(`画布尺寸已自动调整：${naturalWidth + paddingHorizontal}×${naturalHeight + paddingVertical} → ${finalWidth}×${finalHeight} (缩放比例: ${(scale * 100).toFixed(1)}%)`);
+    }
+    
     return { 
-      canvasWidth: naturalWidth + paddingHorizontal, 
-      canvasHeight: naturalHeight + paddingVertical 
+      canvasWidth: finalWidth, 
+      canvasHeight: finalHeight 
     };
   }
 

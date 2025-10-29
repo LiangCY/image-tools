@@ -10,9 +10,7 @@ import {
   IconElement,
   CanvasSettings,
   ProcessingProgress,
-  HistoryRecord,
-  LayerElement,
-  LayerOperation
+  HistoryRecord
 } from '../types';
 
 // 默认拼接设置
@@ -70,13 +68,6 @@ interface EditStore extends EditState {
   
   // 元素选择
   selectElement: (id: string | null, type: 'image' | 'text' | 'icon' | null) => void;
-  
-  // 层级管理
-  getAllLayers: () => LayerElement[];
-  getNextZIndex: () => number;
-  
-  // 画布渲染
-  forceRenderCanvas: () => void;
   
   // 工具切换
   setActiveTool: (tool: EditTool) => void;
@@ -224,14 +215,6 @@ export const useEditStore = create<EditStore>((set, get) => ({
             0.8 // 80%的画布尺寸
           );
           
-          const currentState = get();
-          const nextZIndex = Math.max(
-            ...currentState.imageElements.map(el => el.zIndex || 0),
-            ...currentState.textElements.map(el => el.zIndex || 0),
-            ...currentState.iconElements.map(el => el.zIndex || 0),
-            0
-          ) + 1;
-          
           const imageElement: ImageElement = {
             id: generateId(),
             imageUrl: url,
@@ -243,9 +226,6 @@ export const useEditStore = create<EditStore>((set, get) => ({
             opacity: 1,
             scaleX: scale, // 只调整缩放比例
             scaleY: scale, // 只调整缩放比例
-            zIndex: nextZIndex,
-            visible: true,
-            locked: false,
           };
           
           set(state => ({
@@ -301,26 +281,9 @@ export const useEditStore = create<EditStore>((set, get) => ({
 
   // 文字元素管理
   addTextElement: (element: Omit<TextElement, 'id'>) => {
-    set(state => {
-      const nextZIndex = Math.max(
-        ...state.imageElements.map(el => el.zIndex || 0),
-        ...state.textElements.map(el => el.zIndex || 0),
-        ...state.iconElements.map(el => el.zIndex || 0),
-        0
-      ) + 1;
-      
-      const newElement: TextElement = {
-        ...element,
-        id: generateId(),
-        zIndex: element.zIndex || nextZIndex,
-        visible: element.visible !== undefined ? element.visible : true,
-        locked: element.locked !== undefined ? element.locked : false,
-      };
-      
-      return {
-        textElements: [...state.textElements, newElement]
-      };
-    });
+    set(state => ({
+      textElements: [...state.textElements, { ...element, id: generateId() }]
+    }));
   },
 
   updateTextElement: (id: string, updates: Partial<TextElement>) => {
@@ -341,26 +304,9 @@ export const useEditStore = create<EditStore>((set, get) => ({
 
   // 图标元素管理
   addIconElement: (element: Omit<IconElement, 'id'>) => {
-    set(state => {
-      const nextZIndex = Math.max(
-        ...state.imageElements.map(el => el.zIndex || 0),
-        ...state.textElements.map(el => el.zIndex || 0),
-        ...state.iconElements.map(el => el.zIndex || 0),
-        0
-      ) + 1;
-      
-      const newElement: IconElement = {
-        ...element,
-        id: generateId(),
-        zIndex: element.zIndex || nextZIndex,
-        visible: element.visible !== undefined ? element.visible : true,
-        locked: element.locked !== undefined ? element.locked : false,
-      };
-      
-      return {
-        iconElements: [...state.iconElements, newElement]
-      };
-    });
+    set(state => ({
+      iconElements: [...state.iconElements, { ...element, id: generateId() }]
+    }));
   },
 
   updateIconElement: (id: string, updates: Partial<IconElement>) => {
@@ -381,86 +327,11 @@ export const useEditStore = create<EditStore>((set, get) => ({
 
   // 元素选择
   selectElement: (id: string | null, type: 'image' | 'text' | 'icon' | null) => {
-    set(state => {
-      const newState: any = { 
-        selectedElementId: id,
-        selectedElementType: type 
-      };
-      
-      // 当选中元素时，自动切换到对应的设置面板
-      if (id && type) {
-        if (type === 'image') {
-          newState.activeTool = 'image';
-        } else if (type === 'text') {
-          newState.activeTool = 'text';
-        }
-      }
-      
-      return newState;
+    set({ 
+      selectedElementId: id,
+      selectedElementType: type 
     });
   },
-
-  // 层级管理
-  getAllLayers: () => {
-    const state = get();
-    const layers: LayerElement[] = [];
-    
-    // 添加图片元素
-    state.imageElements.forEach(element => {
-      layers.push({
-        id: element.id,
-        type: 'image',
-        name: `图片 ${element.id.slice(-4)}`,
-        zIndex: element.zIndex,
-      });
-    });
-    
-    // 添加文字元素
-    state.textElements.forEach(element => {
-      layers.push({
-        id: element.id,
-        type: 'text',
-        name: element.text.length > 10 ? `${element.text.slice(0, 10)}...` : element.text,
-        zIndex: element.zIndex,
-      });
-    });
-    
-    // 添加图标元素
-    state.iconElements.forEach(element => {
-      layers.push({
-        id: element.id,
-        type: 'icon',
-        name: `图标 ${element.iconName}`,
-        zIndex: element.zIndex,
-      });
-    });
-    
-    // 按zIndex排序，zIndex高的在前面
-    return layers.sort((a, b) => b.zIndex - a.zIndex);
-  },
-
-  getNextZIndex: () => {
-    const state = get();
-    return Math.max(
-      ...state.imageElements.map(el => el.zIndex || 0),
-      ...state.textElements.map(el => el.zIndex || 0),
-      ...state.iconElements.map(el => el.zIndex || 0),
-      0
-    ) + 1;
-  },
-
-  // 强制重新渲染画布
-  forceRenderCanvas: () => {
-    // 触发一个微小的状态更新来强制重新渲染
-    set(state => ({ 
-      ...state,
-      _forceRender: Date.now() 
-    }));
-  },
-
-
-
-
 
   // 工具切换
   setActiveTool: (tool: EditTool) => {

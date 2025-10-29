@@ -47,6 +47,36 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     }
   }, []);
 
+  // 根据zIndex重新排序画布对象
+  const reorderCanvasObjects = useCallback(() => {
+    if (!fabricCanvasRef.current) return;
+    
+    const canvas = fabricCanvasRef.current;
+    const allObjects = canvas.getObjects();
+    
+    // 检查是否需要重新排序
+    const needsReordering = allObjects.some((obj, index) => {
+      const nextObj = allObjects[index + 1];
+      if (!nextObj) return false;
+      const currentZIndex = (obj as any).zIndex || 0;
+      const nextZIndex = (nextObj as any).zIndex || 0;
+      return currentZIndex > nextZIndex;
+    });
+    
+    if (needsReordering) {
+      const sortedObjects = [...allObjects].sort((a, b) => {
+        const aZIndex = (a as any).zIndex || 0;
+        const bZIndex = (b as any).zIndex || 0;
+        return aZIndex - bZIndex;
+      });
+      
+      // 直接重新排序对象数组
+      (canvas as any)._objects = sortedObjects;
+      
+      canvas.renderAll();
+    }
+  }, []);
+
   const {
     canvasSettings,
     imageElements,
@@ -55,7 +85,8 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     selectedElementType,
     updateImageElement,
     updateTextElement,
-    selectElement
+    selectElement,
+    _forceRender
   } = useEditStore();
 
   // 缩放控制函数 - 使用CSS transform实现画布本身的视觉缩放
@@ -383,6 +414,9 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
       textAlign: textElement.textAlign,
       angle: textElement.rotation,
       opacity: textElement.opacity,
+      visible: textElement.visible,
+      selectable: !textElement.locked,
+      evented: !textElement.locked,
       cornerStyle: 'circle',
       cornerColor: '#2563eb',
       cornerSize: 8,
@@ -393,6 +427,7 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
 
     // 添加自定义属性
     (text as any).textElementId = textElement.id;
+    (text as any).zIndex = textElement.zIndex;
 
     return text;
   }, []);
@@ -452,6 +487,9 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
         scaleY: imageElement.scaleY,
         angle: imageElement.rotation,
         opacity: imageElement.opacity,
+        visible: imageElement.visible,
+        selectable: !imageElement.locked,
+        evented: !imageElement.locked,
         cornerStyle: 'circle',
         cornerColor: '#2563eb',
         cornerSize: 8,
@@ -462,6 +500,7 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
 
       // 添加自定义属性
       (img as any).imageElementId = imageElement.id;
+      (img as any).zIndex = imageElement.zIndex;
 
       return img;
     });
@@ -556,10 +595,17 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
             textAlign: textElement.textAlign,
             angle: textElement.rotation,
             opacity: textElement.opacity,
+            visible: textElement.visible,
+            selectable: !textElement.locked,
+            evented: !textElement.locked,
           });
+          (existingObj as any).zIndex = textElement.zIndex;
         }
       }
     });
+
+    // 重新排序画布对象
+    reorderCanvasObjects();
 
     // 强制重新绘制所有对象
     canvas.getObjects().forEach(obj => {
@@ -575,7 +621,7 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
         canvas.renderAll();
       }
     }, 50);
-  }, [textElements, createFabricText]);
+  }, [textElements, createFabricText, reorderCanvasObjects]);
 
   // 同步图片元素到画布
   useEffect(() => {
@@ -612,10 +658,17 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
             scaleY: imageElement.scaleY,
             angle: imageElement.rotation,
             opacity: imageElement.opacity,
+            visible: imageElement.visible,
+            selectable: !imageElement.locked,
+            evented: !imageElement.locked,
           });
+          (existingObj as any).zIndex = imageElement.zIndex;
         }
       }
     });
+
+    // 重新排序画布对象
+    reorderCanvasObjects();
 
     // 强制重新绘制所有对象
     canvas.getObjects().forEach(obj => {
@@ -631,7 +684,15 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
         canvas.renderAll();
       }
     }, 50);
-  }, [imageElements, createFabricImage]);
+  }, [imageElements, createFabricImage, reorderCanvasObjects]);
+
+  // 监听强制渲染标记
+  useEffect(() => {
+    if (_forceRender && fabricCanvasRef.current) {
+      reorderCanvasObjects();
+      forceRenderAll();
+    }
+  }, [_forceRender, reorderCanvasObjects, forceRenderAll]);
 
   // 选中元素
   useEffect(() => {
