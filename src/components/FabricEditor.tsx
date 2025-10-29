@@ -6,6 +6,7 @@ import ExportPanel from './ExportPanel';
 import TextPanel from './TextPanel';
 import LayersPanel from './LayersPanel';
 import FabricCanvas from './FabricCanvas';
+import DrawPanel from './DrawPanel';
 import { Canvas } from 'fabric';
 
 import {
@@ -13,7 +14,8 @@ import {
   Settings,
   Type,
   Download,
-  Layers
+  Layers,
+  Brush
 } from 'lucide-react';
 
 const FabricEditor: React.FC = () => {
@@ -36,6 +38,7 @@ const FabricEditor: React.FC = () => {
     { id: 'canvas' as const, icon: Settings, label: '画布', component: CanvasSettingsPanel },
     { id: 'image' as const, icon: ImageIcon, label: '图片', component: ImagePanel },
     { id: 'text' as const, icon: Type, label: '文字', component: TextPanel },
+    { id: 'draw' as const, icon: Brush, label: '绘画', component: DrawPanel },
     { id: 'export' as const, icon: Download, label: '导出', component: ExportPanel },
   ];
 

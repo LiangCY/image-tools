@@ -12,7 +12,8 @@ import {
   ProcessingProgress,
   HistoryRecord,
   LayerElement,
-  LayerOperation
+  LayerOperation,
+  DrawSettings
 } from '../types';
 
 // 默认拼接设置
@@ -49,6 +50,13 @@ const defaultCanvasSettings: CanvasSettings = {
   maxHeight: 2000,
 };
 
+// 默认绘画设置
+const defaultDrawSettings: DrawSettings = {
+  brushSize: 5,
+  brushColor: '#000000',
+  isDrawingMode: false,
+};
+
 interface EditStore extends EditState {
   // 画布设置
   updateCanvasSettings: (settings: Partial<CanvasSettings>) => void;
@@ -80,6 +88,11 @@ interface EditStore extends EditState {
   
   // 工具切换
   setActiveTool: (tool: EditTool) => void;
+  
+  // 绘画设置
+  updateDrawSettings: (settings: Partial<DrawSettings>) => void;
+  toggleDrawingMode: () => void;
+  clearDrawing: () => void;
   
   // 视图控制
   setZoom: (zoom: number) => void;
@@ -192,6 +205,9 @@ export const useEditStore = create<EditStore>((set, get) => ({
   zoom: 1,
   panX: 0,
   panY: 0,
+  
+  // 绘画设置
+  drawSettings: defaultDrawSettings,
   
   // 兼容性设置
   spliceSettings: defaultSpliceSettings,
@@ -467,6 +483,31 @@ export const useEditStore = create<EditStore>((set, get) => ({
     set({ activeTool: tool });
   },
 
+  // 绘画设置
+  updateDrawSettings: (settings: Partial<DrawSettings>) => {
+    set(state => ({
+      drawSettings: { ...state.drawSettings, ...settings }
+    }));
+  },
+
+  toggleDrawingMode: () => {
+    set(state => ({
+      drawSettings: { 
+        ...state.drawSettings, 
+        isDrawingMode: !state.drawSettings.isDrawingMode 
+      }
+    }));
+  },
+
+  clearDrawing: () => {
+    set(state => ({
+      drawSettings: { 
+        ...state.drawSettings, 
+        clearDrawingTrigger: Date.now() 
+      }
+    }));
+  },
+
   // 兼容性方法
   updateSpliceSettings: (settings: Partial<SpliceSettings>) => {
     set(state => ({
@@ -510,6 +551,7 @@ export const useEditStore = create<EditStore>((set, get) => ({
       zoom: 1,
       panX: 0,
       panY: 0,
+      drawSettings: defaultDrawSettings,
       spliceSettings: defaultSpliceSettings,
       compressionSettings: defaultCompressionSettings,
     });

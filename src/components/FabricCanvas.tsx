@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { Canvas, Text, Image, Point, Rect } from 'fabric';
+import { Canvas, Text, Image, Point, Rect, PencilBrush } from 'fabric';
 import { useEditStore } from '../stores';
 import { TextElement, ImageElement } from '../types';
 import { ZoomIn, ZoomOut, RotateCcw, Maximize } from 'lucide-react';
@@ -86,56 +86,59 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     updateImageElement,
     updateTextElement,
     selectElement,
+    drawSettings,
+    clearDrawing,
     _forceRender
   } = useEditStore();
 
-  // 缩放控制函数 - 使用CSS transform实现画布本身的视觉缩放
+  // 缩放控制函数 - 使用Fabric.js内置缩放功能
   const handleZoomIn = useCallback(() => {
-    if (!canvasContainerRef.current) return;
+    if (!fabricCanvasRef.current) return;
+    const canvas = fabricCanvasRef.current;
     const newZoom = Math.min(5, zoom * 1.2);
 
-    console.log('Zoom In:', zoom, '->', newZoom);
 
-    // 使用CSS transform缩放画布容器
-    const container = canvasContainerRef.current;
-    container.style.transform = `scale(${newZoom})`;
-    container.style.transformOrigin = 'center center';
+
+    // 使用Fabric.js的缩放功能
+    const center = canvas.getCenter();
+    canvas.zoomToPoint(new Point(center.left, center.top), newZoom);
 
     setZoom(newZoom);
     setDisplayZoom(newZoom);
   }, [zoom]);
 
   const handleZoomOut = useCallback(() => {
-    if (!canvasContainerRef.current) return;
+    if (!fabricCanvasRef.current) return;
+    const canvas = fabricCanvasRef.current;
     const newZoom = Math.max(0.1, zoom / 1.2);
 
-    console.log('Zoom Out:', zoom, '->', newZoom);
 
-    // 使用CSS transform缩放画布容器
-    const container = canvasContainerRef.current;
-    container.style.transform = `scale(${newZoom})`;
-    container.style.transformOrigin = 'center center';
+
+    // 使用Fabric.js的缩放功能
+    const center = canvas.getCenter();
+    canvas.zoomToPoint(new Point(center.left, center.top), newZoom);
 
     setZoom(newZoom);
     setDisplayZoom(newZoom);
   }, [zoom]);
 
   const handleZoomReset = useCallback(() => {
-    if (!canvasContainerRef.current) return;
+    if (!fabricCanvasRef.current) return;
+    const canvas = fabricCanvasRef.current;
 
-    console.log('Zoom Reset');
 
-    // 重置CSS transform
-    const container = canvasContainerRef.current;
-    container.style.transform = 'scale(1)';
-    container.style.transformOrigin = 'center center';
+
+    // 使用Fabric.js重置缩放
+    const center = canvas.getCenter();
+    canvas.zoomToPoint(new Point(center.left, center.top), 1);
 
     setZoom(1);
     setDisplayZoom(1);
   }, []);
 
   const handleZoomFit = useCallback(() => {
-    if (!canvasContainerRef.current || !containerRef.current) return;
+    if (!fabricCanvasRef.current || !containerRef.current) return;
+    const canvas = fabricCanvasRef.current;
     const container = containerRef.current;
 
     const containerWidth = container.clientWidth - 100;
@@ -147,12 +150,11 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     const scaleY = containerHeight / canvasHeight;
     const newZoom = Math.min(scaleX, scaleY, 1);
 
-    console.log('Zoom Fit:', newZoom);
 
-    // 使用CSS transform缩放画布容器
-    const canvasContainer = canvasContainerRef.current;
-    canvasContainer.style.transform = `scale(${newZoom})`;
-    canvasContainer.style.transformOrigin = 'center center';
+
+    // 使用Fabric.js的缩放功能
+    const center = canvas.getCenter();
+    canvas.zoomToPoint(new Point(center.left, center.top), newZoom);
 
     setZoom(newZoom);
     setDisplayZoom(newZoom);
@@ -160,7 +162,7 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
 
   // 初始化 Fabric.js 画布
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || fabricCanvasRef.current) return;
 
     const canvas = new Canvas(canvasRef.current, {
       width: canvasSettings.width,
@@ -168,51 +170,94 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
       backgroundColor: canvasSettings.backgroundColor,
       selection: true,
       preserveObjectStacking: true,
+      isDrawingMode: false,
+      enableRetinaScaling: true,
     });
 
     fabricCanvasRef.current = canvas;
+
+    // 初始化绘画笔刷
+    if (!canvas.freeDrawingBrush) {
+      canvas.freeDrawingBrush = new PencilBrush(canvas);
+    }
+    
+    if (canvas.freeDrawingBrush) {
+      canvas.freeDrawingBrush.width = 5;
+      canvas.freeDrawingBrush.color = '#000000';
+    }
 
     // 通知父组件画布已准备就绪
     if (onCanvasReady) {
       onCanvasReady(canvas);
     }
 
-    // 禁用滚轮缩放，防止意外操作
+    // 启用滚轮缩放
     canvas.on('mouse:wheel', (opt) => {
-      // 阻止默认的滚轮行为，但不进行缩放
+      const delta = opt.e.deltaY;
+      let zoom = canvas.getZoom();
+      zoom *= 0.999 ** delta;
+      
+      if (zoom > 5) zoom = 5;
+      if (zoom < 0.1) zoom = 0.1;
+      
+      canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+      setZoom(zoom);
+      setDisplayZoom(zoom);
+      
       opt.e.preventDefault();
       opt.e.stopPropagation();
     });
 
-    // 平移功能
+    // 平移功能和绘画模式监听
     canvas.on('mouse:down', (opt) => {
       const evt = opt.e;
-      if (evt.altKey || evt.ctrlKey) {
+      
+      if (canvas.isDrawingMode) {
+        // 在绘画模式下不阻止事件传播
+        return;
+      } else if (evt.altKey || evt.ctrlKey) {
+        // 只在非绘画模式下启用平移
         setIsPanning(true);
         canvas.selection = false;
         canvas.defaultCursor = 'grab';
         canvas.hoverCursor = 'grab';
+        canvas.isDragging = true;
+        canvas.lastPosX = evt.clientX;
+        canvas.lastPosY = evt.clientY;
+        opt.e.preventDefault();
+        opt.e.stopPropagation();
       }
     });
 
     canvas.on('mouse:move', (opt) => {
-      if (isPanning) {
-        const evt = opt.e as MouseEvent;
+      if (canvas.isDrawingMode) {
+        // 在绘画模式下不阻止事件传播
+        return;
+      } else if (isPanning && canvas.isDragging) {
+        const evt = opt.e;
         const vpt = canvas.viewportTransform;
-        if (vpt && evt.movementX !== undefined && evt.movementY !== undefined) {
-          vpt[4] += evt.movementX;
-          vpt[5] += evt.movementY;
+        if (vpt) {
+          vpt[4] += evt.clientX - canvas.lastPosX;
+          vpt[5] += evt.clientY - canvas.lastPosY;
           canvas.requestRenderAll();
+          canvas.lastPosX = evt.clientX;
+          canvas.lastPosY = evt.clientY;
         }
+        opt.e.preventDefault();
+        opt.e.stopPropagation();
       }
     });
 
-    canvas.on('mouse:up', () => {
-      if (isPanning) {
+    canvas.on('mouse:up', (opt) => {
+      if (canvas.isDrawingMode) {
+        // 在绘画模式下不阻止事件传播
+        return;
+      } else if (isPanning) {
         setIsPanning(false);
         canvas.selection = true;
         canvas.defaultCursor = 'default';
         canvas.hoverCursor = 'move';
+        canvas.isDragging = false;
       }
     });
 
@@ -254,6 +299,15 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
         }
       }
     });
+
+    // 监听绘画路径创建事件
+    canvas.on('path:created', (e) => {
+      // 绘画路径创建后的处理逻辑可以在这里添加
+    });
+
+
+
+
 
     canvas.on('object:moving', (e) => {
       const obj = e.target as any;
@@ -313,9 +367,12 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      canvas.dispose();
+      if (fabricCanvasRef.current) {
+        fabricCanvasRef.current.dispose();
+        fabricCanvasRef.current = null;
+      }
     };
-  }, [canvasSettings]);
+  }, []);
 
   // 更新画布尺寸和背景色
   useEffect(() => {
@@ -364,11 +421,60 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     }
   }, [canvasSettings]);
 
+  // 监听绘画设置变化
+  useEffect(() => {
+    if (fabricCanvasRef.current) {
+      const canvas = fabricCanvasRef.current;
+      
+      // 更新绘画模式
+      canvas.isDrawingMode = drawSettings.isDrawingMode;
+      
+      // 更新笔刷设置
+      if (canvas.freeDrawingBrush) {
+        canvas.freeDrawingBrush.width = drawSettings.brushSize;
+        canvas.freeDrawingBrush.color = drawSettings.brushColor;
+      }
+      
+      // 如果进入绘画模式，禁用对象选择
+      if (drawSettings.isDrawingMode) {
+        canvas.selection = false;
+        canvas.defaultCursor = 'crosshair';
+        canvas.hoverCursor = 'crosshair';
+        canvas.moveCursor = 'crosshair';
+      } else {
+        canvas.selection = true;
+        canvas.defaultCursor = 'default';
+        canvas.hoverCursor = 'move';
+        canvas.moveCursor = 'move';
+      }
+    }
+  }, [drawSettings]);
 
+  // 初始化绘画设置（仅在画布创建后执行一次）
+  useEffect(() => {
+    if (fabricCanvasRef.current) {
+      const canvas = fabricCanvasRef.current;
+      
+      // 初始化绘画模式设置
+      if (canvas.freeDrawingBrush) {
+        canvas.freeDrawingBrush.width = drawSettings.brushSize;
+        canvas.freeDrawingBrush.color = drawSettings.brushColor;
+      }
+    }
+  }, [fabricCanvasRef.current]);
 
-
-
-
+  // 清除绘画功能
+  useEffect(() => {
+    if (fabricCanvasRef.current && drawSettings.clearDrawingTrigger) {
+      const canvas = fabricCanvasRef.current;
+      
+      // 清除所有绘画路径
+      const objects = canvas.getObjects();
+      const drawingPaths = objects.filter(obj => obj.type === 'path');
+      drawingPaths.forEach(path => canvas.remove(path));
+      canvas.renderAll();
+    }
+  }, [drawSettings.clearDrawingTrigger]);
 
   // 从 Fabric 对象更新 TextElement
   const updateTextElementFromFabricObject = useCallback((obj: any) => {
@@ -723,10 +829,7 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
       {/* 缩放控制栏 */}
       <div className="absolute bottom-4 left-4 z-10 flex items-center space-x-2 bg-white rounded-lg shadow-md border p-2">
         <button
-          onClick={() => {
-            console.log('Zoom Out button clicked');
-            handleZoomOut();
-          }}
+          onClick={handleZoomOut}
           className={`p-2 rounded transition-colors ${zoom <= 0.1
             ? 'text-gray-300 cursor-not-allowed'
             : 'hover:bg-gray-100 text-gray-700'
@@ -742,10 +845,7 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
         </span>
 
         <button
-          onClick={() => {
-            console.log('Zoom In button clicked');
-            handleZoomIn();
-          }}
+          onClick={handleZoomIn}
           className={`p-2 rounded transition-colors ${zoom >= 5
             ? 'text-gray-300 cursor-not-allowed'
             : 'hover:bg-gray-100 text-gray-700'
@@ -788,10 +888,7 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
           className="shadow-lg"
           style={{
             lineHeight: 0,
-            backgroundColor: canvasSettings.backgroundColor,
-            transformOrigin: 'center center',
-            transition: 'transform 0.2s ease',
-            willChange: 'transform'
+            backgroundColor: canvasSettings.backgroundColor
           }}
         >
           <canvas

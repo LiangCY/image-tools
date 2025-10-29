@@ -124,7 +124,7 @@ export interface ExportSettings {
 }
 
 // 编辑工具类型
-export type EditTool = 'canvas' | 'image' | 'text' | 'icon' | 'export' | 'splice';
+export type EditTool = 'canvas' | 'image' | 'text' | 'icon' | 'export' | 'splice' | 'draw';
 
 // 画布设置类型
 export interface CanvasSettings {
@@ -155,6 +155,9 @@ export interface EditState {
   zoom: number;
   panX: number;
   panY: number;
+  
+  // 绘画设置
+  drawSettings: DrawSettings;
   
   // 旧的设置（保留兼容性）
   spliceSettings: SpliceSettings;
@@ -190,3 +193,11 @@ export interface LayerElement {
 
 // 层级操作类型
 export type LayerOperation = 'moveUp' | 'moveDown' | 'moveToTop' | 'moveToBottom';
+
+// 绘画设置类型
+export interface DrawSettings {
+  brushSize: number;
+  brushColor: string;
+  isDrawingMode: boolean;
+  clearDrawingTrigger?: number;
+}
