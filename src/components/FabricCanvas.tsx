@@ -95,6 +95,8 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     _forceRender
   } = useEditStore();
 
+
+
   // 缩放控制函数 - 使用CSS transform缩放整个画布容器
   const handleZoomIn = useCallback(() => {
     if (!canvasContainerRef.current) return;
@@ -613,6 +615,12 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
 
   // 在画布设置更新后，强制重新同步文字元素
   const [lastCanvasSettings, setLastCanvasSettings] = useState(canvasSettings);
+  const textElementsRef = useRef(textElements);
+  
+  // 更新 textElements ref
+  useEffect(() => {
+    textElementsRef.current = textElements;
+  }, [textElements]);
 
   useEffect(() => {
     // 只有当画布设置真正改变时才重新同步
@@ -621,12 +629,18 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
       lastCanvasSettings.height !== canvasSettings.height ||
       lastCanvasSettings.backgroundColor !== canvasSettings.backgroundColor;
 
-    if (!fabricCanvasRef.current || textElements.length === 0 || !settingsChanged) {
+    if (!fabricCanvasRef.current || !settingsChanged) {
       setLastCanvasSettings(canvasSettings);
       return;
     }
 
     const canvas = fabricCanvasRef.current;
+    const currentTextElements = textElementsRef.current;
+
+    if (currentTextElements.length === 0) {
+      setLastCanvasSettings(canvasSettings);
+      return;
+    }
 
     console.log('Force re-sync text elements after canvas settings change');
 
@@ -637,7 +651,7 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     });
 
     // 重新添加所有文字元素
-    textElements.forEach(textElement => {
+    currentTextElements.forEach(textElement => {
       console.log('Re-adding text element:', textElement.text);
       const fabricText = createFabricText(textElement);
       canvas.add(fabricText);
@@ -654,7 +668,9 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
 
     setLastCanvasSettings(canvasSettings);
 
-  }, [canvasSettings, textElements, createFabricText, lastCanvasSettings]);
+  }, [canvasSettings, createFabricText, lastCanvasSettings]);
+
+
 
   // 创建 Fabric 图片对象
   const createFabricImage = useCallback((imageElement: ImageElement): Promise<Image> => {

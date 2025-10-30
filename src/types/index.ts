@@ -63,74 +63,50 @@ export interface CompressionSettings {
   format: 'jpeg' | 'png' | 'webp';
 }
 
-// 文字元素类型
-export interface TextElement {
+// 基础元素接口
+export interface BaseElement {
   id: string;
-  text: string;
   x: number;
   y: number;
+  rotation: number;
+  opacity: number;
+  scaleX: number;
+  scaleY: number;
+  zIndex: number;
+  visible: boolean;
+  locked: boolean;
+}
+
+// 文字元素类型
+export interface TextElement extends BaseElement {
+  text: string;
   fontSize: number;
   fontFamily: string;
   color: string;
   fontWeight: 'normal' | 'bold';
   fontStyle: 'normal' | 'italic';
   textAlign: 'left' | 'center' | 'right';
-  rotation: number;
-  opacity: number;
-  scaleX: number;
-  scaleY: number;
-  zIndex: number;
-  visible: boolean;
-  locked: boolean;
 }
 
 // 图片元素类型
-export interface ImageElement {
-  id: string;
+export interface ImageElement extends BaseElement {
   imageUrl: string;
-  x: number;
-  y: number;
   width: number;
   height: number;
-  rotation: number;
-  opacity: number;
-  scaleX: number;
-  scaleY: number;
-  zIndex: number;
-  visible: boolean;
-  locked: boolean;
 }
 
 // 图标元素类型
-export interface IconElement {
-  id: string;
+export interface IconElement extends BaseElement {
   iconName: string;
-  x: number;
-  y: number;
   size: number;
   color: string;
-  rotation: number;
-  opacity: number;
-  zIndex: number;
-  visible: boolean;
-  locked: boolean;
 }
 
 // 绘画元素类型
-export interface DrawElement {
-  id: string;
+export interface DrawElement extends BaseElement {
   pathData: string; // SVG路径数据
   strokeWidth: number;
   strokeColor: string;
-  x: number;
-  y: number;
-  rotation: number;
-  opacity: number;
-  scaleX: number;
-  scaleY: number;
-  zIndex: number;
-  visible: boolean;
-  locked: boolean;
   createdAt: number;
 }
 
@@ -222,3 +198,18 @@ export interface DrawSettings {
   isDrawingMode: boolean;
   clearDrawingTrigger?: number;
 }
+
+// 通用元素类型联合
+export type AnyElement = TextElement | ImageElement | IconElement | DrawElement;
+
+// 元素类型字符串
+export type ElementType = 'text' | 'image' | 'icon' | 'draw';
+
+// 通用更新函数类型
+export type ElementUpdater<T extends BaseElement> = (id: string, updates: Partial<T>) => void;
+
+// 通用删除函数类型
+export type ElementRemover = (id: string) => void;
+
+// 通用添加函数类型
+export type ElementAdder<T extends BaseElement> = (element: Omit<T, 'id'>) => void;

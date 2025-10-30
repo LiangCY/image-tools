@@ -10,7 +10,8 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
-  Check
+  Check,
+  Palette
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -160,6 +161,26 @@ const TextPanel: React.FC = () => {
     removeTextElement(id);
   };
 
+  // 自动调整所有文字颜色以适应背景
+  const handleAutoAdjustColors = () => {
+    const contrastColor = getContrastColor(canvasSettings.backgroundColor);
+    let updatedCount = 0;
+    
+    textElements.forEach(textElement => {
+      // 只更新使用默认对比色的文字（黑色或白色）
+      if (textElement.color === '#000000' || textElement.color === '#FFFFFF') {
+        updateTextElement(textElement.id, { color: contrastColor });
+        updatedCount++;
+      }
+    });
+    
+    if (updatedCount > 0) {
+      toast.success(`已自动调整 ${updatedCount} 个文字的颜色`);
+    } else {
+      toast.info('没有需要调整的文字颜色');
+    }
+  };
+
   // 更新文字属性
   const updateText = (updates: Partial<TextElement>) => {
     if (selectedElementId && selectedElementType === 'text') {
@@ -250,9 +271,19 @@ disabled={!newText.trim()}
       {/* 文字列表 */}
       {textElements.length > 0 && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            文字列表 ({textElements.length})
-          </label>
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-medium text-gray-700">
+              文字列表 ({textElements.length})
+            </label>
+            <button
+              onClick={handleAutoAdjustColors}
+              className="flex items-center space-x-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+              title="自动调整文字颜色以适应背景"
+            >
+              <Palette className="w-3 h-3" />
+              <span>自动调色</span>
+            </button>
+          </div>
           <div className="space-y-2">
             {textElements.map((textElement) => (
               <div

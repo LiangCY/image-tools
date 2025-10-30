@@ -16,6 +16,8 @@ import {
   LayerOperation,
   DrawSettings
 } from '../types';
+import { generateId, getNextZIndex } from '../utils/common';
+import { textElementManager, imageElementManager, iconElementManager, drawElementManager } from '../utils/elementManager';
 
 // 默认拼接设置
 const defaultSpliceSettings: SpliceSettings = {
@@ -129,8 +131,7 @@ interface HistoryStore {
   getRecentRecords: (limit?: number) => HistoryRecord[];
 }
 
-// 生成唯一ID
-const generateId = () => Math.random().toString(36).substring(2, 11);
+
 
 // 计算图片自动调整后的尺寸
 const calculateAutoResizedDimensions = (
@@ -323,155 +324,29 @@ export const useEditStore = create<EditStore>((set, get) => ({
   },
 
   // 文字元素管理
-  addTextElement: (element: Omit<TextElement, 'id'>) => {
-    set(state => {
-      const nextZIndex = Math.max(
-        ...state.imageElements.map(el => el.zIndex || 0),
-        ...state.textElements.map(el => el.zIndex || 0),
-        ...state.iconElements.map(el => el.zIndex || 0),
-        0
-      ) + 1;
-      
-      const newElement: TextElement = {
-        ...element,
-        id: generateId(),
-        zIndex: element.zIndex || nextZIndex,
-        visible: element.visible !== undefined ? element.visible : true,
-        locked: element.locked !== undefined ? element.locked : false,
-        scaleX: element.scaleX !== undefined ? element.scaleX : 1,
-        scaleY: element.scaleY !== undefined ? element.scaleY : 1,
-      };
-      
-      return {
-        textElements: [...state.textElements, newElement]
-      };
-    });
-  },
-
-  updateTextElement: (id: string, updates: Partial<TextElement>) => {
-    set(state => ({
-      textElements: state.textElements.map(element =>
-        element.id === id ? { ...element, ...updates } : element
-      )
-    }));
-  },
-
-  removeTextElement: (id: string) => {
-    set(state => ({
-      textElements: state.textElements.filter(element => element.id !== id),
-      selectedElementId: state.selectedElementId === id ? null : state.selectedElementId,
-      selectedElementType: state.selectedElementId === id ? null : state.selectedElementType,
-    }));
-  },
+  addTextElement: textElementManager.createAdder(() => get(), set, 'textElements'),
+  updateTextElement: textElementManager.createUpdater(set, 'textElements'),
+  removeTextElement: textElementManager.createRemover(set, 'textElements'),
 
   // 图标元素管理
-  addIconElement: (element: Omit<IconElement, 'id'>) => {
-    set(state => {
-      const nextZIndex = Math.max(
-        ...state.imageElements.map(el => el.zIndex || 0),
-        ...state.textElements.map(el => el.zIndex || 0),
-        ...state.iconElements.map(el => el.zIndex || 0),
-        0
-      ) + 1;
-      
-      const newElement: IconElement = {
-        ...element,
-        id: generateId(),
-        zIndex: element.zIndex || nextZIndex,
-        visible: element.visible !== undefined ? element.visible : true,
-        locked: element.locked !== undefined ? element.locked : false,
-      };
-      
-      return {
-        iconElements: [...state.iconElements, newElement]
-      };
-    });
-  },
-
-  updateIconElement: (id: string, updates: Partial<IconElement>) => {
-    set(state => ({
-      iconElements: state.iconElements.map(element =>
-        element.id === id ? { ...element, ...updates } : element
-      )
-    }));
-  },
-
-  removeIconElement: (id: string) => {
-    set(state => ({
-      iconElements: state.iconElements.filter(element => element.id !== id),
-      selectedElementId: state.selectedElementId === id ? null : state.selectedElementId,
-      selectedElementType: state.selectedElementId === id ? null : state.selectedElementType,
-    }));
-  },
+  addIconElement: iconElementManager.createAdder(() => get(), set, 'iconElements'),
+  updateIconElement: iconElementManager.createUpdater(set, 'iconElements'),
+  removeIconElement: iconElementManager.createRemover(set, 'iconElements'),
 
   // 绘画元素管理
   addDrawElement: (element: Omit<DrawElement, 'id'>) => {
-    const newId = generateId();
-    set(state => {
-      const nextZIndex = Math.max(
-        ...state.imageElements.map(el => el.zIndex || 0),
-        ...state.textElements.map(el => el.zIndex || 0),
-        ...state.iconElements.map(el => el.zIndex || 0),
-        ...state.drawElements.map(el => el.zIndex || 0),
-        0
-      ) + 1;
-      
-      const newElement: DrawElement = {
-        ...element,
-        id: newId,
-        zIndex: element.zIndex || nextZIndex,
-        visible: element.visible !== undefined ? element.visible : true,
-        locked: element.locked !== undefined ? element.locked : false,
-        scaleX: element.scaleX !== undefined ? element.scaleX : 1,
-        scaleY: element.scaleY !== undefined ? element.scaleY : 1,
-        createdAt: Date.now(),
-      };
-      
-      return {
-        drawElements: [...state.drawElements, newElement]
-      };
-    });
-    return newId;
+    const elementWithTimestamp = { ...element, createdAt: Date.now() };
+    const adder = drawElementManager.createAdder(() => get(), set, 'drawElements');
+    adder(elementWithTimestamp);
+    // 返回新生成的ID（需要从状态中获取）
+    const state = get();
+    return state.drawElements[state.drawElements.length - 1]?.id || '';
   },
-
-  updateDrawElement: (id: string, updates: Partial<DrawElement>) => {
-    set(state => ({
-      drawElements: state.drawElements.map(element =>
-        element.id === id ? { ...element, ...updates } : element
-      )
-    }));
-  },
-
-  removeDrawElement: (id: string) => {
-    set(state => ({
-      drawElements: state.drawElements.filter(element => element.id !== id),
-      selectedElementId: state.selectedElementId === id ? null : state.selectedElementId,
-      selectedElementType: state.selectedElementId === id ? null : state.selectedElementType,
-    }));
-  },
+  updateDrawElement: drawElementManager.createUpdater(set, 'drawElements'),
+  removeDrawElement: drawElementManager.createRemover(set, 'drawElements'),
 
   // 元素选择
-  selectElement: (id: string | null, type: 'image' | 'text' | 'icon' | 'draw' | null) => {
-    set(state => {
-      const newState: any = { 
-        selectedElementId: id,
-        selectedElementType: type 
-      };
-      
-      // 当选中元素时，自动切换到对应的设置面板
-      if (id && type) {
-        if (type === 'image') {
-          newState.activeTool = 'image';
-        } else if (type === 'text') {
-          newState.activeTool = 'text';
-        } else if (type === 'draw') {
-          newState.activeTool = 'draw';
-        }
-      }
-      
-      return newState;
-    });
-  },
+  selectElement: textElementManager.createSelector(set),
 
   // 层级管理
   getAllLayers: () => {
@@ -526,13 +401,13 @@ export const useEditStore = create<EditStore>((set, get) => ({
 
   getNextZIndex: () => {
     const state = get();
-    return Math.max(
-      ...state.imageElements.map(el => el.zIndex || 0),
-      ...state.textElements.map(el => el.zIndex || 0),
-      ...state.iconElements.map(el => el.zIndex || 0),
-      ...state.drawElements.map(el => el.zIndex || 0),
-      0
-    ) + 1;
+    const allElements = [
+      state.imageElements,
+      state.textElements,
+      state.iconElements,
+      state.drawElements
+    ];
+    return getNextZIndex(allElements);
   },
 
   // 强制重新渲染画布

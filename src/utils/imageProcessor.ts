@@ -7,6 +7,7 @@ import {
   ExportSettings 
 } from '../types';
 import { generatePresets } from './canvasPresets';
+import { loadImage } from './common';
 
 // 图片拼接处理
 export class ImageSplicer {
@@ -20,7 +21,7 @@ export class ImageSplicer {
 
     // 加载所有图片
     const loadedImages = await Promise.all(
-      images.map(imageFile => this.loadImage(imageFile.url))
+      images.map(imageFile => loadImage(imageFile.url))
     );
 
     // 计算画布尺寸
@@ -44,14 +45,7 @@ export class ImageSplicer {
     return canvas;
   }
 
-  private static loadImage(url: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = url;
-    });
-  }
+
 
   private static drawBackground(
     ctx: CanvasRenderingContext2D,
@@ -307,7 +301,7 @@ export class ImageCompressor {
     imageFile: ImageFile, 
     settings: CompressionSettings
   ): Promise<{ canvas: HTMLCanvasElement; originalSize: number; compressedSize: number }> {
-    const img = await this.loadImage(imageFile.url);
+    const img = await loadImage(imageFile.url);
     
     // 计算新尺寸
     const { width, height } = this.calculateNewSize(img, settings);
@@ -330,14 +324,7 @@ export class ImageCompressor {
     };
   }
 
-  private static loadImage(url: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = url;
-    });
-  }
+
 
   private static calculateNewSize(
     img: HTMLImageElement, 
@@ -974,12 +961,5 @@ export class ImageProcessor {
     return canvas;
   }
 
-  private static loadImage(url: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = url;
-    });
-  }
+
 }
