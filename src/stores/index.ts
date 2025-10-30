@@ -8,6 +8,7 @@ import {
   TextElement,
   ImageElement,
   IconElement,
+  DrawElement,
   CanvasSettings,
   ProcessingProgress,
   HistoryRecord,
@@ -76,8 +77,13 @@ interface EditStore extends EditState {
   updateIconElement: (id: string, updates: Partial<IconElement>) => void;
   removeIconElement: (id: string) => void;
   
+  // 绘画元素管理
+  addDrawElement: (element: Omit<DrawElement, 'id'>) => string;
+  updateDrawElement: (id: string, updates: Partial<DrawElement>) => void;
+  removeDrawElement: (id: string) => void;
+  
   // 元素选择
-  selectElement: (id: string | null, type: 'image' | 'text' | 'icon' | null) => void;
+  selectElement: (id: string | null, type: 'image' | 'text' | 'icon' | 'draw' | null) => void;
   
   // 层级管理
   getAllLayers: () => LayerElement[];
@@ -195,6 +201,7 @@ export const useEditStore = create<EditStore>((set, get) => ({
   imageElements: [],
   textElements: [],
   iconElements: [],
+  drawElements: [],
   
   // 选择状态
   selectedElementId: null,
@@ -397,8 +404,54 @@ export const useEditStore = create<EditStore>((set, get) => ({
     }));
   },
 
+  // 绘画元素管理
+  addDrawElement: (element: Omit<DrawElement, 'id'>) => {
+    const newId = generateId();
+    set(state => {
+      const nextZIndex = Math.max(
+        ...state.imageElements.map(el => el.zIndex || 0),
+        ...state.textElements.map(el => el.zIndex || 0),
+        ...state.iconElements.map(el => el.zIndex || 0),
+        ...state.drawElements.map(el => el.zIndex || 0),
+        0
+      ) + 1;
+      
+      const newElement: DrawElement = {
+        ...element,
+        id: newId,
+        zIndex: element.zIndex || nextZIndex,
+        visible: element.visible !== undefined ? element.visible : true,
+        locked: element.locked !== undefined ? element.locked : false,
+        scaleX: element.scaleX !== undefined ? element.scaleX : 1,
+        scaleY: element.scaleY !== undefined ? element.scaleY : 1,
+        createdAt: Date.now(),
+      };
+      
+      return {
+        drawElements: [...state.drawElements, newElement]
+      };
+    });
+    return newId;
+  },
+
+  updateDrawElement: (id: string, updates: Partial<DrawElement>) => {
+    set(state => ({
+      drawElements: state.drawElements.map(element =>
+        element.id === id ? { ...element, ...updates } : element
+      )
+    }));
+  },
+
+  removeDrawElement: (id: string) => {
+    set(state => ({
+      drawElements: state.drawElements.filter(element => element.id !== id),
+      selectedElementId: state.selectedElementId === id ? null : state.selectedElementId,
+      selectedElementType: state.selectedElementId === id ? null : state.selectedElementType,
+    }));
+  },
+
   // 元素选择
-  selectElement: (id: string | null, type: 'image' | 'text' | 'icon' | null) => {
+  selectElement: (id: string | null, type: 'image' | 'text' | 'icon' | 'draw' | null) => {
     set(state => {
       const newState: any = { 
         selectedElementId: id,
@@ -411,6 +464,8 @@ export const useEditStore = create<EditStore>((set, get) => ({
           newState.activeTool = 'image';
         } else if (type === 'text') {
           newState.activeTool = 'text';
+        } else if (type === 'draw') {
+          newState.activeTool = 'draw';
         }
       }
       
@@ -453,6 +508,18 @@ export const useEditStore = create<EditStore>((set, get) => ({
       });
     });
     
+    // 添加绘画元素
+    state.drawElements.forEach(element => {
+      const date = new Date(element.createdAt);
+      const timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      layers.push({
+        id: element.id,
+        type: 'draw',
+        name: `绘画 ${timeStr}`,
+        zIndex: element.zIndex,
+      });
+    });
+    
     // 按zIndex排序，zIndex高的在前面
     return layers.sort((a, b) => b.zIndex - a.zIndex);
   },
@@ -463,6 +530,7 @@ export const useEditStore = create<EditStore>((set, get) => ({
       ...state.imageElements.map(el => el.zIndex || 0),
       ...state.textElements.map(el => el.zIndex || 0),
       ...state.iconElements.map(el => el.zIndex || 0),
+      ...state.drawElements.map(el => el.zIndex || 0),
       0
     ) + 1;
   },
@@ -503,6 +571,7 @@ export const useEditStore = create<EditStore>((set, get) => ({
 
   clearDrawing: () => {
     set(state => ({
+      drawElements: [], // 清空所有绘画元素
       drawSettings: { 
         ...state.drawSettings, 
         clearDrawingTrigger: Date.now() 
@@ -547,6 +616,7 @@ export const useEditStore = create<EditStore>((set, get) => ({
       imageElements: [],
       textElements: [],
       iconElements: [],
+      drawElements: [],
       selectedElementId: null,
       selectedElementType: null,
       activeTool: 'canvas',

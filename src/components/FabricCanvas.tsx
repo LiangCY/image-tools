@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { Canvas, Text, Image, Point, Rect, PencilBrush } from 'fabric';
 import { useEditStore } from '../stores';
-import { TextElement, ImageElement } from '../types';
+import { TextElement, ImageElement, DrawElement } from '../types';
 import { ZoomIn, ZoomOut, RotateCcw, Maximize } from 'lucide-react';
 
 interface FabricCanvasProps {
@@ -81,64 +81,55 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     canvasSettings,
     imageElements,
     textElements,
+    drawElements,
     selectedElementId,
     selectedElementType,
     updateImageElement,
     updateTextElement,
+    updateDrawElement,
+    addDrawElement,
+    removeDrawElement,
     selectElement,
     drawSettings,
     clearDrawing,
     _forceRender
   } = useEditStore();
 
-  // 缩放控制函数 - 使用Fabric.js内置缩放功能
+  // 缩放控制函数 - 使用CSS transform缩放整个画布容器
   const handleZoomIn = useCallback(() => {
-    if (!fabricCanvasRef.current) return;
-    const canvas = fabricCanvasRef.current;
+    if (!canvasContainerRef.current) return;
     const newZoom = Math.min(5, zoom * 1.2);
-
-
-
-    // 使用Fabric.js的缩放功能
-    const center = canvas.getCenter();
-    canvas.zoomToPoint(new Point(center.left, center.top), newZoom);
-
+    
+    // 使用CSS transform缩放整个画布容器
+    canvasContainerRef.current.style.transform = `scale(${newZoom})`;
+    
     setZoom(newZoom);
     setDisplayZoom(newZoom);
   }, [zoom]);
 
   const handleZoomOut = useCallback(() => {
-    if (!fabricCanvasRef.current) return;
-    const canvas = fabricCanvasRef.current;
+    if (!canvasContainerRef.current) return;
     const newZoom = Math.max(0.1, zoom / 1.2);
-
-
-
-    // 使用Fabric.js的缩放功能
-    const center = canvas.getCenter();
-    canvas.zoomToPoint(new Point(center.left, center.top), newZoom);
-
+    
+    // 使用CSS transform缩放整个画布容器
+    canvasContainerRef.current.style.transform = `scale(${newZoom})`;
+    
     setZoom(newZoom);
     setDisplayZoom(newZoom);
   }, [zoom]);
 
   const handleZoomReset = useCallback(() => {
-    if (!fabricCanvasRef.current) return;
-    const canvas = fabricCanvasRef.current;
-
-
-
-    // 使用Fabric.js重置缩放
-    const center = canvas.getCenter();
-    canvas.zoomToPoint(new Point(center.left, center.top), 1);
-
+    if (!canvasContainerRef.current) return;
+    
+    // 重置CSS transform
+    canvasContainerRef.current.style.transform = 'scale(1)';
+    
     setZoom(1);
     setDisplayZoom(1);
   }, []);
 
   const handleZoomFit = useCallback(() => {
-    if (!fabricCanvasRef.current || !containerRef.current) return;
-    const canvas = fabricCanvasRef.current;
+    if (!canvasContainerRef.current || !containerRef.current) return;
     const container = containerRef.current;
 
     const containerWidth = container.clientWidth - 100;
@@ -150,12 +141,9 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     const scaleY = containerHeight / canvasHeight;
     const newZoom = Math.min(scaleX, scaleY, 1);
 
-
-
-    // 使用Fabric.js的缩放功能
-    const center = canvas.getCenter();
-    canvas.zoomToPoint(new Point(center.left, center.top), newZoom);
-
+    // 使用CSS transform缩放整个画布容器
+    canvasContainerRef.current.style.transform = `scale(${newZoom})`;
+    
     setZoom(newZoom);
     setDisplayZoom(newZoom);
   }, [canvasSettings]);
@@ -172,6 +160,8 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
       preserveObjectStacking: true,
       isDrawingMode: false,
       enableRetinaScaling: true,
+      // 禁用Fabric.js内置的缩放功能，我们使用CSS transform
+      allowTouchScrolling: false,
     });
 
     fabricCanvasRef.current = canvas;
@@ -191,18 +181,24 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
       onCanvasReady(canvas);
     }
 
-    // 启用滚轮缩放
+    // 启用滚轮缩放 - 使用CSS transform
     canvas.on('mouse:wheel', (opt) => {
       const delta = opt.e.deltaY;
-      let zoom = canvas.getZoom();
-      zoom *= 0.999 ** delta;
-      
-      if (zoom > 5) zoom = 5;
-      if (zoom < 0.1) zoom = 0.1;
-      
-      canvas.zoomToPoint(new Point(opt.e.offsetX, opt.e.offsetY), zoom);
-      setZoom(zoom);
-      setDisplayZoom(zoom);
+      setZoom(currentZoom => {
+        let newZoom = currentZoom;
+        newZoom *= 0.999 ** delta;
+        
+        if (newZoom > 5) newZoom = 5;
+        if (newZoom < 0.1) newZoom = 0.1;
+        
+        // 使用CSS transform缩放整个画布容器
+        if (canvasContainerRef.current) {
+          canvasContainerRef.current.style.transform = `scale(${newZoom})`;
+        }
+        
+        setDisplayZoom(newZoom);
+        return newZoom;
+      });
       
       opt.e.preventDefault();
       opt.e.stopPropagation();
@@ -269,6 +265,8 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
           selectElement(activeObject.textElementId, 'text');
         } else if (activeObject.imageElementId) {
           selectElement(activeObject.imageElementId, 'image');
+        } else if (activeObject.drawElementId) {
+          selectElement(activeObject.drawElementId, 'draw');
         }
       }
     });
@@ -280,6 +278,8 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
           selectElement(activeObject.textElementId, 'text');
         } else if (activeObject.imageElementId) {
           selectElement(activeObject.imageElementId, 'image');
+        } else if (activeObject.drawElementId) {
+          selectElement(activeObject.drawElementId, 'draw');
         }
       }
     });
@@ -296,13 +296,52 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
           updateTextElementFromFabricObject(obj);
         } else if (obj.imageElementId) {
           updateImageElementFromFabricObject(obj);
+        } else if (obj.drawElementId) {
+          updateDrawElementFromFabricObject(obj);
         }
       }
     });
 
     // 监听绘画路径创建事件
     canvas.on('path:created', (e) => {
-      // 绘画路径创建后的处理逻辑可以在这里添加
+      const path = e.path;
+      if (path) {
+        // 设置绘画路径的样式
+        path.set({
+          cornerStyle: 'circle',
+          cornerColor: '#2563eb',
+          cornerSize: 8,
+          transparentCorners: false,
+          borderColor: '#2563eb',
+          borderScaleFactor: 2,
+        });
+        
+        // 获取路径的SVG数据
+        const pathData = (path as any).path?.toString() || '';
+        
+        // 创建绘画元素并添加到状态管理
+        const drawElement: Omit<DrawElement, 'id'> = {
+          pathData: pathData,
+          strokeWidth: path.strokeWidth || 5,
+          strokeColor: path.stroke?.toString() || '#000000',
+          x: path.left || 0,
+          y: path.top || 0,
+          rotation: path.angle || 0,
+          opacity: path.opacity || 1,
+          scaleX: path.scaleX || 1,
+          scaleY: path.scaleY || 1,
+          zIndex: 0, // 将在addDrawElement中设置正确的zIndex
+          visible: true,
+          locked: false,
+          createdAt: Date.now(),
+        };
+        
+        // 添加绘画元素并获取新的ID
+        const newElementId = addDrawElement(drawElement);
+        
+        // 为Fabric对象设置ID以便后续识别
+        (path as any).drawElementId = newElementId;
+      }
     });
 
 
@@ -316,6 +355,8 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
           updateTextElementFromFabricObject(obj);
         } else if (obj.imageElementId) {
           updateImageElementFromFabricObject(obj);
+        } else if (obj.drawElementId) {
+          updateDrawElementFromFabricObject(obj);
         }
       }
     });
@@ -327,6 +368,8 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
           updateTextElementFromFabricObject(obj);
         } else if (obj.imageElementId) {
           updateImageElementFromFabricObject(obj);
+        } else if (obj.drawElementId) {
+          updateDrawElementFromFabricObject(obj);
         }
       }
     });
@@ -338,6 +381,8 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
           updateTextElementFromFabricObject(obj);
         } else if (obj.imageElementId) {
           updateImageElementFromFabricObject(obj);
+        } else if (obj.drawElementId) {
+          updateDrawElementFromFabricObject(obj);
         }
       }
     });
@@ -421,6 +466,13 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     }
   }, [canvasSettings]);
 
+  // 确保画布容器的transform与zoom状态同步
+  useEffect(() => {
+    if (canvasContainerRef.current) {
+      canvasContainerRef.current.style.transform = `scale(${zoom})`;
+    }
+  }, [zoom]);
+
   // 监听绘画设置变化
   useEffect(() => {
     if (fabricCanvasRef.current) {
@@ -468,9 +520,9 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     if (fabricCanvasRef.current && drawSettings.clearDrawingTrigger) {
       const canvas = fabricCanvasRef.current;
       
-      // 清除所有绘画路径
+      // 清除所有绘画路径（包括有drawElementId的对象）
       const objects = canvas.getObjects();
-      const drawingPaths = objects.filter(obj => obj.type === 'path');
+      const drawingPaths = objects.filter(obj => obj.type === 'path' || (obj as any).drawElementId);
       drawingPaths.forEach(path => canvas.remove(path));
       canvas.renderAll();
     }
@@ -507,6 +559,24 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
 
     updateImageElement(obj.imageElementId, updates);
   }, [updateImageElement]);
+
+  // 从 Fabric 对象更新 DrawElement
+  const updateDrawElementFromFabricObject = useCallback((obj: any) => {
+    if (!obj.drawElementId) return;
+
+    const updates: Partial<DrawElement> = {
+      x: obj.left || 0,
+      y: obj.top || 0,
+      scaleX: obj.scaleX || 1,
+      scaleY: obj.scaleY || 1,
+      rotation: obj.angle || 0,
+      opacity: obj.opacity || 1,
+      strokeWidth: obj.strokeWidth || 5,
+      strokeColor: obj.stroke?.toString() || '#000000',
+    };
+
+    updateDrawElement(obj.drawElementId, updates);
+  }, [updateDrawElement]);
 
   // 创建 Fabric 文字对象
   const createFabricText = useCallback((textElement: TextElement): Text => {
@@ -797,6 +867,62 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     }, 50);
   }, [imageElements, createFabricImage, reorderCanvasObjects]);
 
+  // 同步绘画元素到画布
+  useEffect(() => {
+    if (!fabricCanvasRef.current) return;
+
+    const canvas = fabricCanvasRef.current;
+
+    // 获取当前画布上的绘画对象
+    const currentDrawObjects = canvas.getObjects().filter(obj => (obj as any).drawElementId);
+
+    // 移除不存在的绘画元素
+    currentDrawObjects.forEach(obj => {
+      if (!drawElements.find(el => el.id === (obj as any).drawElementId)) {
+        canvas.remove(obj);
+      }
+    });
+
+    // 更新现有绘画元素的属性
+    drawElements.forEach(drawElement => {
+      const existingObj = currentDrawObjects.find(obj => (obj as any).drawElementId === drawElement.id);
+      if (existingObj) {
+        existingObj.set({
+          left: drawElement.x,
+          top: drawElement.y,
+          scaleX: drawElement.scaleX,
+          scaleY: drawElement.scaleY,
+          angle: drawElement.rotation,
+          opacity: drawElement.opacity,
+          visible: drawElement.visible,
+          selectable: !drawElement.locked,
+          evented: !drawElement.locked,
+          strokeWidth: drawElement.strokeWidth,
+          stroke: drawElement.strokeColor,
+        });
+        (existingObj as any).zIndex = drawElement.zIndex;
+      }
+    });
+
+    // 重新排序画布对象
+    reorderCanvasObjects();
+
+    // 强制重新绘制所有对象
+    canvas.getObjects().forEach(obj => {
+      obj.setCoords();
+      obj.dirty = true;
+    });
+
+    canvas.renderAll();
+
+    // 额外的渲染确保绘画正确显示
+    setTimeout(() => {
+      if (canvas) {
+        canvas.renderAll();
+      }
+    }, 50);
+  }, [drawElements, reorderCanvasObjects]);
+
   // 监听强制渲染标记
   useEffect(() => {
     if (_forceRender && fabricCanvasRef.current) {
@@ -817,6 +943,8 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
         targetObj = canvas.getObjects().find(obj => (obj as any).textElementId === selectedElementId);
       } else if (selectedElementType === 'image') {
         targetObj = canvas.getObjects().find(obj => (obj as any).imageElementId === selectedElementId);
+      } else if (selectedElementType === 'draw') {
+        targetObj = canvas.getObjects().find(obj => (obj as any).drawElementId === selectedElementId);
       }
 
       if (targetObj) {
@@ -893,7 +1021,10 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
           className="shadow-lg"
           style={{
             lineHeight: 0,
-            backgroundColor: canvasSettings.backgroundColor
+            backgroundColor: canvasSettings.backgroundColor,
+            transformOrigin: 'center center',
+            transform: `scale(${zoom})`,
+            transition: 'transform 0.1s ease-out'
           }}
         >
           <canvas

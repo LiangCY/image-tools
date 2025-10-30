@@ -6,7 +6,8 @@ import {
   Type,
   Star,
   Trash2,
-  GripVertical
+  GripVertical,
+  Brush
 } from 'lucide-react';
 import {
   DndContext,
@@ -74,6 +75,8 @@ const SortableLayerItem: React.FC<SortableLayerItemProps> = ({
         return Type;
       case 'icon':
         return Star;
+      case 'draw':
+        return Brush;
       default:
         return ImageIcon;
     }
@@ -133,9 +136,11 @@ const LayersPanel: React.FC = () => {
     removeImageElement,
     removeTextElement,
     removeIconElement,
+    removeDrawElement,
     updateImageElement,
     updateTextElement,
     updateIconElement,
+    updateDrawElement,
     forceRenderCanvas
   } = useEditStore();
 
@@ -171,6 +176,9 @@ const LayersPanel: React.FC = () => {
       case 'icon':
         removeIconElement(layer.id);
         break;
+      case 'draw':
+        removeDrawElement(layer.id);
+        break;
     }
   };
 
@@ -204,6 +212,9 @@ const LayersPanel: React.FC = () => {
               break;
             case 'icon':
               updateIconElement(layer.id, { zIndex: newZIndex });
+              break;
+            case 'draw':
+              updateDrawElement(layer.id, { zIndex: newZIndex });
               break;
           }
         });
@@ -240,7 +251,7 @@ const LayersPanel: React.FC = () => {
           </div>
           <p className="text-sm text-gray-500">暂无图层</p>
           <p className="text-xs text-gray-400 mt-1">
-            添加图片、文字或图标来创建图层
+            添加图片、文字、图标或绘画来创建图层
           </p>
         </div>
       </div>
@@ -294,6 +305,7 @@ const LayersPanel: React.FC = () => {
                     case 'image': return ImageIcon;
                     case 'text': return Type;
                     case 'icon': return Star;
+                    case 'draw': return Brush;
                     default: return ImageIcon;
                   }
                 };

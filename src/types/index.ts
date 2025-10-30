@@ -116,6 +116,24 @@ export interface IconElement {
   locked: boolean;
 }
 
+// 绘画元素类型
+export interface DrawElement {
+  id: string;
+  pathData: string; // SVG路径数据
+  strokeWidth: number;
+  strokeColor: string;
+  x: number;
+  y: number;
+  rotation: number;
+  opacity: number;
+  scaleX: number;
+  scaleY: number;
+  zIndex: number;
+  visible: boolean;
+  locked: boolean;
+  createdAt: number;
+}
+
 // 导出设置类型
 export interface ExportSettings {
   format: 'jpeg' | 'png' | 'webp';
@@ -147,10 +165,11 @@ export interface EditState {
   imageElements: ImageElement[];
   textElements: TextElement[];
   iconElements: IconElement[];
+  drawElements: DrawElement[];
   
   // 选择状态
   selectedElementId: string | null;
-  selectedElementType: 'image' | 'text' | 'icon' | null;
+  selectedElementType: 'image' | 'text' | 'icon' | 'draw' | null;
   
   // 工具和视图
   activeTool: EditTool;
@@ -188,7 +207,7 @@ export interface HistoryRecord {
 // 层级元素类型
 export interface LayerElement {
   id: string;
-  type: 'image' | 'text' | 'icon';
+  type: 'image' | 'text' | 'icon' | 'draw';
   name: string;
   zIndex: number;
 }
