@@ -89,6 +89,9 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
     updateDrawElement,
     addDrawElement,
     removeDrawElement,
+    removeImageElement,
+    removeTextElement,
+    removeIconElement,
     selectElement,
     drawSettings,
     clearDrawing,
@@ -389,7 +392,7 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
       }
     });
 
-    // 键盘快捷键支持
+    // 键盘快捷键支持（仅缩放功能）
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) {
         switch (e.key) {
@@ -972,6 +975,44 @@ const FabricCanvas: React.FC<FabricCanvasProps> = ({ onCanvasReady }) => {
 
     canvas.renderAll();
   }, [selectedElementId, selectedElementType]);
+
+  // 键盘删除功能
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 检查是否在输入框中，如果是则不处理
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
+        return;
+      }
+
+      // 处理删除键
+      if ((e.key === 'Backspace' || e.key === 'Delete') && selectedElementId && selectedElementType) {
+        e.preventDefault();
+        
+        // 根据元素类型调用相应的删除方法
+        switch (selectedElementType) {
+          case 'text':
+            removeTextElement(selectedElementId);
+            break;
+          case 'image':
+            removeImageElement(selectedElementId);
+            break;
+          case 'draw':
+            removeDrawElement(selectedElementId);
+            break;
+          case 'icon':
+            removeIconElement(selectedElementId);
+            break;
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedElementId, selectedElementType, removeTextElement, removeImageElement, removeDrawElement, removeIconElement]);
 
   return (
     <div ref={containerRef} className="relative overflow-hidden h-full">
