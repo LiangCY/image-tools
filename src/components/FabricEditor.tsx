@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { useEditStore, useProcessingStore } from '../stores';
 import CanvasSettingsPanel from './CanvasSettingsPanel';
 import ImagePanel from './ImagePanel';
@@ -23,7 +23,8 @@ const FabricEditor: React.FC = () => {
     canvasSettings,
     activeTool,
     setActiveTool,
-    reset
+    reset,
+    updateDrawSettings
   } = useEditStore();
 
   const { progress } = useProcessingStore();
@@ -32,6 +33,20 @@ const FabricEditor: React.FC = () => {
   const handleCanvasReady = (canvas: Canvas) => {
     fabricCanvasRef.current = canvas;
   };
+
+  // 处理用户主动切换工具
+  const handleToolSwitch = useCallback((toolId: typeof activeTool) => {
+    setActiveTool(toolId);
+    
+    // 只有在用户主动切换工具时才控制绘画状态
+    if (toolId === 'draw') {
+      // 切换到绘画面板时，自动进入绘画状态
+      updateDrawSettings({ isDrawingMode: true });
+    } else {
+      // 切换到其他面板时，自动退出绘画状态
+      updateDrawSettings({ isDrawingMode: false });
+    }
+  }, [setActiveTool, updateDrawSettings]);
 
   // 工具面板配置
   const tools = [
@@ -84,7 +99,7 @@ const FabricEditor: React.FC = () => {
               return (
                 <button
                   key={tool.id}
-                  onClick={() => setActiveTool(tool.id)}
+                  onClick={() => handleToolSwitch(tool.id)}
                   className={`flex flex-col items-center space-y-1 px-4 py-3 rounded-lg transition-all border ${activeTool === tool.id
                       ? 'bg-blue-100 text-blue-700 border-blue-200'
                       : 'text-gray-600 hover:bg-gray-100 border-transparent'

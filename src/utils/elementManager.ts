@@ -72,7 +72,7 @@ export const createElementManager = <T extends BaseElement>() => {
     createSelector: (
       setState: (updater: (state: EditState) => Partial<EditState>) => void
     ) => (id: string | null, type: ElementType | null) => {
-      setState(() => {
+      setState((state: EditState) => {
         const newState: Partial<EditState> = { 
           selectedElementId: id,
           selectedElementType: type 
@@ -81,6 +81,14 @@ export const createElementManager = <T extends BaseElement>() => {
         // 当选中元素时，自动切换到对应的设置面板
         if (id && type) {
           newState.activeTool = type;
+        }
+        
+        // 当选中任何元素时，退出绘画状态
+        if (id && type) {
+          newState.drawSettings = {
+            ...state.drawSettings,
+            isDrawingMode: false
+          };
         }
         
         return newState;
